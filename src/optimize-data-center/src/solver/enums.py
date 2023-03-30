@@ -135,8 +135,8 @@ def enum_best_heuristic_ub_increment(problem: Problem) -> Solution:
                 if aux > best_increment:
                     best_component = component
                     best_increment = aux
-            print(f"SCORE: {solution.score()}, UB: {solution.upper_bound()}")
             solution.add(best_component)
+            print(f"SCORE: {solution.score()}, UB: {solution.upper_bound()}")
         else: 
             break 
     return solution

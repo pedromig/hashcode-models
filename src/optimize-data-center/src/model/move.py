@@ -6,18 +6,16 @@ if TYPE_CHECKING:
     
 class LocalMove:
     def __init__(self: LocalMove, problem: Problem, 
-                 add: tuple[int, int, int],
-                 remove: tuple[int, int, int],
-                 swap: bool = False,
-                 pool: bool = False) -> None:
+                 add: tuple[int] | None, remove: tuple[int] | None, 
+                 inplace: bool = False, pool: bool = False) -> None:
         self.problem = problem
         self.add = add
         self.remove = remove
-        self.swap = swap
+        self.inplace = inplace
         self.pool = pool
 
     def __str__(self: LocalMove) -> str:
-        return f"{self.add} {self.remove}" 
+        return f"{self.add} {self.remove} {self.inplace} {self.pool}" 
 
     def __repr__(self: LocalMove) -> str:
         return self.__str__()

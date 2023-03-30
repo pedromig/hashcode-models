@@ -12,13 +12,15 @@ import random
 import operator
 
 # TODO: Documentation
+# TODO: Ghost Segment/Pool aka yield Component(self.problem, server, None, None) 
 
 class Solution:
     def __init__(self: Solution, problem: Problem, used: set[int] | None, 
                  unused: set[int] | None, alloc: list[tuple[int]] | None, 
                  ss: list[int] | None, gc: list[int] | None, cp: list[int] | None, 
-                 rc: list[int] | None, mc: list[int] | None, objv: tuple[int] | None, ub: float, 
-                 ub_kp: list[int], ub_lim: list[int], ub_full: list[int], ub_frac: list[int]) -> None: 
+                 rc: list[list[int]] | None, mc: list[int] | None, 
+                 objv: tuple[int] | None, ub: float,  ub_kp: list[int], 
+                 ub_lim: list[int], ub_full: list[int], ub_frac: list[int]) -> None: 
         # Problem
         self.problem = problem 
        
@@ -81,7 +83,6 @@ class Solution:
                         for segment in self.problem.rows[row]:
                             if self.__fits(server, segment):
                                 yield Component(self.problem, server, pool, segment)
-            yield Component(self.problem, server, None, None) 
                                 
     def enum_local_move(self: Solution) -> Iterable[LocalMove]:  
         # Add (unused) Servers 
@@ -92,22 +93,25 @@ class Solution:
                         for p in range(self.problem.p):
                             yield LocalMove(self.problem, (add, p, segment), None)
    
-        # # Remove (used) Servers
+        # Remove (used) Servers
         for remove in self.used:
             yield LocalMove(self.problem, None, (remove, *self.alloc[remove]))
 
-        # # Swap (used) servers
+        # Swap (used) server by another (unused) server
+        for add in self.unused:
+            for remove in self.used:
+                if self.__swappable(add, remove):
+                    for p in range(self.problem.p):
+                        a, r = (add, p, self.alloc[remove][1]), (remove, *self.alloc[remove])
+                        yield LocalMove(self.problem, a, r)
+
+        # Swap (used) servers
         for i in self.used:
             for j in self.used:
-                if i != j :
-                    if self.__swappable(i, j):
-                        a, b = (i, *self.alloc[i]), (j, *self.alloc[j])
-                        yield LocalMove(self.problem, a, b, swap = True)
-                        yield LocalMove(self.problem, a, b, swap = True, pool = True)    
-
-        # Swap (used) server by another (unused) server
-        # TODO: Test all pools
-        ...
+                if i != j and self.__swappable(i, j, inplace = True):
+                    a, b = (i, *self.alloc[i]), (j, *self.alloc[j])
+                    yield LocalMove(self.problem, a, b, inplace = True)
+                    yield LocalMove(self.problem, a, b, inplace = True, pool = True)    
 
     def random_add_move(self: Solution) -> Component: 
         unused = list(self.unused)
@@ -144,20 +148,20 @@ class Solution:
             yield move
  
     def step(self: Solution, move: LocalMove) -> None:
-        if move.swap:
-            ...
+        if move.inplace:  
+            return self.__swap(move.add, move.remove, move.pool)
 
         if move.add is not None:
             self.add(Component(self.problem, *move.add))
 
         if move.remove is not None:
             self.remove(Component(self.problem, *move.remove))
-      
+             
     def add(self: Solution, c: Component) -> None:
         # Add Component 
         self.__addServer(c)
         
-        # Update Score
+        # Update Objective Value
         self.objv = tuple(sorted(self.gc))
         
         # Update Bound 
@@ -167,24 +171,58 @@ class Solution:
         # Remove Component
         self.__removeServer(c)
           
-        # Update Score
+        # Update Objective Value
         self.objv = tuple(sorted(self.gc))
 
         # Update Bound 
         self.ub = self.__bound_update(c, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac)
 
-    def objective_increment_local(self: Solution) -> int:
-        ...
-    
     def objective_increment_add(self: Solution, c: Component) -> int:
         cp = self.cp[c.pool] + self.problem.servers[c.server][1]
         rc = self.rc[c.pool][self.problem.segments[c.segment][0]] + self.problem.servers[c.server][1]
         gc = self.gc.copy()
         gc[c.pool] = cp - max(self.mc[c.pool], rc) 
         gc.sort()
-        new_objv = tuple(gc)
+        return tuple(map(operator.sub, tuple(gc), self.objv))
 
-        return tuple(map(operator.sub, new_objv, self.objv))
+    def objective_increment_local(self: Solution, m: LocalMove) -> int:
+        gc = self.gc.copy()  
+        if m.inplace:
+            iserver, ipool, isegment = m.add
+            isize, icap = self.problem.servers[iserver]
+            irow = self.problem.segments[isegment][0]
+
+            jserver, jpool, jsegment = m.remove
+            jsize, jcap =  self.problem.servers[jserver]
+            jrow = self.problem.segments[jsegment][0]
+
+            cpi = self.cp[ipool] - icap + jcap
+            rci = self.rc[ipool][irow] - icap + jcap
+            gc[ipool] = cpi - max(self.mc[ipool], rci) 
+
+            cpj = self.cp[jpool] - icap + jcap
+            rcj = self.rc[jpool][jrow] - icap + jcap
+            gc[jpool] = cpj - max(self.mc[jpool], rcj)  
+        else:
+            if m.add is not None:
+                server, pool, segment = m.add
+                size, cap = self.problem.servers[server]
+                row = self.problem.segments[segment][0]
+
+                cp = self.cp[pool] + cap
+                rc = self.rc[pool][row] + cap 
+                gc[pool] = cp - max(self.mc[pool], rc) 
+
+            if m.remove is not None:
+                server, pool, segment = m.remove
+                size, cap = self.problem.servers[server]
+                row = self.problem.segments[segment][0]
+
+                cp = self.cp[pool] - cap
+                rc = self.rc[pool][row] - cap 
+                gc[pool] = cp - max(self.mc[pool], rc) 
+        gc.sort()
+        return tuple(map(operator.sub, tuple(gc), self.objv))
     
     def upper_bound_increment_add(self: Solution, c: Component) -> float:  
         ub = self.__bound_update(c, self.ub_kp.copy(), self.ub_lim.copy(),
@@ -195,15 +233,41 @@ class Solution:
         return self.problem.servers[server][0] <= self.ss[segment]        
  
     def __swappable(self: Solution, i: int, j: int, inplace = False) -> bool:
-        iseg, jseg = self.alloc[i][1], self.alloc[j][1]
-        isize, _ = self.problem.servers[i]
-        jsize, _ = self.problem.servers[j]
+        if inplace:
+            iseg, jseg = self.alloc[i][1], self.alloc[j][1]
+            isize, _ = self.problem.servers[i]
+            jsize, _ = self.problem.servers[j]
+            return self.ss[iseg] + isize - jsize >= 0 and self.ss[jseg] + jsize - isize >= 0
+        else:
+            return self.ss[self.alloc[j][1]] + self.problem.servers[i][0] - self.problem.servers[j][0] >= 0
 
-        # Conditions
-        a = self.ss[iseg] + isize - jsize >= 0 
-        b = self.ss[jseg] + jsize - isize >= 0
-        return b if inplace is False else a and b
-    
+    def __swap(self: Solution, i: tuple[int], j: tuple[int], pool: bool) -> None:
+        iserver, ipool, isegment = i
+        jserver, jpool, jsegment = j
+        irow, jrow = self.problem.segments[isegment][0], self.problem.segments[jsegment][0]
+        isize, icap = self.problem.servers[iserver]
+        jsize, jcap =  self.problem.servers[jserver]
+           
+        # Update Allocation
+        self.alloc[iserver] = (jpool if pool else ipool, jsegment)
+        self.alloc[jserver] = (ipool if pool else jpool, isegment)
+
+        # Update Capacities
+        self.ss[isegment] = self.ss[isegment] + isize - jsize
+        self.cp[ipool] = self.cp[ipool] - icap + jcap
+        self.rc[ipool][irow] = self.rc[ipool][irow] - icap + jcap
+        self.mc[ipool] = max(self.mc[ipool], self.rc[ipool][irow])
+        self.gc[ipool] = self.cp[ipool] - self.mc[ipool] 
+
+        self.ss[jsegment] = self.ss[jsegment] + jsize - isize
+        self.cp[jpool] = self.cp[jpool] - jcap + icap
+        self.rc[jpool][jpool] = self.rc[jpool][jrow] - jcap + icap
+        self.mc[jpool] = max(self.mc[jpool], self.rc[jpool][jrow])
+        self.gc[jpool] = self.cp[jpool] - self.mc[jpool] 
+
+        # Update Objective Value
+        self.objv = tuple(sorted(self.gc))
+
     def __addServer(self: Solution, c: Component):
         size, capacity = self.problem.servers[c.server]  
         row, _, _ = self.problem.segments[c.segment]  

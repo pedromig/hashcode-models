@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from .problem import *
 
 class Component:
-    def __init__(self: Component, problem: Problem, server: int, pool: int, segment: int) -> None:
+    def __init__(self: Component, problem: Problem, server: int, pool: int | None, segment: int | None) -> None:
         self.problem = problem
         self.server = server
         self.pool = pool

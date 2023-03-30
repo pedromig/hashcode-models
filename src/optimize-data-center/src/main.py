@@ -33,7 +33,7 @@ if __name__ == "__main__":
    
     # Example (bound.in) 
     # solution = problem.empty_solution()
-    # 
+     
     # debug(solution.upper_bound())    
     # debug(solution.upper_bound_increment_add(Component(problem, 0, 0, 1)))   
     # solution.add(Component(problem, 0, 0, 1))  
@@ -65,6 +65,8 @@ if __name__ == "__main__":
     # solution = bs(problem)
     # solution = ig(problem)
     # solution = grasp(problem)
+
+    solution = first_improvement(solution, Timer(20))
 
     debug("SCORE: ", solution.score())  
     debug("OBJECTIVE VALUE: ", solution.objective_value())
