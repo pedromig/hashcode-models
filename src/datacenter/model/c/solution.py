@@ -10,13 +10,12 @@ if TYPE_CHECKING:
 import math
 import random
 import operator
+import itertools
 import copy
 import sys
 
 # FIXME: Bound Update Remove
 # FIXME: Lex-Max Bound
-
-# TODO: Save earlier versions of this problem for further analysis
 
 # NOTE: best_fit(row) -> segment
 # NOTE: Bound: Discard servers that don't fit anywhere
@@ -75,8 +74,8 @@ class Solution:
         self.mc = [0] * self.problem.p if mc is None else mc
 
         # Objective Value
-        self.objv = tuple(
-            sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+        self.objv = tuple(sorted(itertools.chain(*zip(*self.rc)))) if objv is None else objv
+        
 
         # Upper Bound
         if ub is None and init_ub:
@@ -142,7 +141,7 @@ class Solution:
     def enum_remove_move(self: Solution) -> Iterable[Component]:
         for server in self.unused:
             pool, segment = self.alloc[server]
-            yield Component(problem, server, pool, segment)
+            yield Component(self.problem, server, pool, segment)
 
     def enum_heuristic_add_move(self: Solution) -> Iterable[Component]:
         if self.iserver < self.problem.m:
@@ -161,8 +160,7 @@ class Solution:
         used = list(self.used)
         unused = list(self.unused)
 
-        add_moves = len(self.unused) * \
-            len(self.problem.segments) * self.problem.p
+        add_moves = len(self.unused) * len(self.problem.segments) * self.problem.p
         remove_moves = len(self.used)
         change_segment_moves = len(self.used) * len(self.problem.segments)
         change_pool_moves = len(self.used) * self.problem.p
@@ -311,11 +309,7 @@ class Solution:
             pool, segment = self.alloc[server]
             for p in range(self.problem.p):
                 if p != pool:
-                    yield LocalMove(
-                        self.problem,
-                        (server, p, segment),
-                        (server, pool, segment)
-                    )
+                    yield LocalMove(self.problem, (server, p, segment), (server, pool, segment))
 
         # Complex Movements
 
@@ -401,15 +395,14 @@ class Solution:
         # objv = self._objective_value(move)
 
         # Update Objective Value
-        self.objv = tuple(
-            sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+        self.objv = tuple(sorted(itertools.chain(*zip(*self.rc))))
 
         # assert self.objv == objv
 
         # Update Bound
         self.ub = None
 
-    def perturb(self: Solution, kick) -> None:
+    def perturb(self: Solution, kick: int) -> None:
         for _ in range(kick):
             self.step(self.random_local_move())
 
@@ -433,8 +426,7 @@ class Solution:
             self.__add(c)
 
             # Update Objective Value
-            self.objv = tuple(
-                sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+            self.objv = tuple(sorted(itertools.chain(*zip(*self.rc))))
 
             # Update Bound
             self.ub = self.__upper_bound_update_add(
@@ -456,8 +448,7 @@ class Solution:
         self.__remove(c)
 
         # Update Objective Value
-        self.objv = tuple(
-            sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+        self.objv = tuple(sorted(itertools.chain(*zip(*self.rc))))
 
         # Update Bound
         self.ub = self.__upper_bound_update_remove(
@@ -473,13 +464,14 @@ class Solution:
         )
         gc = self.gc.copy()
         gc[c.pool] = cp - max(self.mc[c.pool], rc)
-        gc.sort()
-        return tuple(sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+        gc.sort()   
+        rc = tuple(sorted(itertools.chain(*zip(*rc))))
+        return tuple(map(operator.sub, rc, self.rc))
 
     def objective_increment_remove(self: Solution, c: Component) -> tuple[int]:
         ...
 
-    def objective_increment_local(self: Solution, m: LocalMove) -> int:
+    def objective_increment_local(self: Solution, m: LocalMove) -> tuple[int, int, int]:
         gc = self.gc.copy()
         if m.swap_segment or m.swap_pool:
             i, pi, si = m.add
@@ -546,7 +538,9 @@ class Solution:
                     self.rc[pool][:row] + self.rc[pool][row + 1:] + [rc]
                 )
         gc.sort()
-        return tuple(sorted(map(lambda x: tuple(sorted(x)), tuple(zip(*self.rc)))))
+        rc = tuple(sorted(itertools.chain(*zip(*rc))))
+        return tuple(map(operator.sub, rc, self.rc))
+
 
     def upper_bound_increment_add(self: Solution, c: Component) -> float:
         if c.pool is None or c.segment is None:
@@ -574,10 +568,7 @@ class Solution:
 
             self.cp[c.pool] -= capacity
             self.rc[c.pool][row] -= capacity
-        ans = []
-        for i, j in zip(ub, self.ub):
-            ans.append(tuple(map(operator.sub, i, j)))
-        return sorted(tuple(ans))
+        return tuple(map(operator.sub, ub, self.ub))
 
     def upper_bound_increment_remove(self: Solution, c: Component) -> float:
 
@@ -644,7 +635,7 @@ class Solution:
             knapsacks[i] -= size if i != row else 0
 
         # Upper Bound
-        ub = [sys.maxsize] * self.problem.p
+        ub = []
         for i in range(self.problem.r):
             total = capacities[i]
             for s in self.problem.sservers:
@@ -656,7 +647,7 @@ class Solution:
                     else:
                         total += cp * (knapsacks[i] / sz)
                         break
-            self.__row_upper_bound(i, total, ub)
+            ub.extend(self.__row_upper_bound(i, total, ub))
 
         # Decrement Capacities (for bound calculation)
         self.cp[c.pool] -= capacity
@@ -691,7 +682,7 @@ class Solution:
                 knapsacks[j] += sz if j != r else 0
 
         # Upper Bound
-        ub = [sys.maxsize] * self.problem.p
+        ub = []
         for i in range(self.problem.r):
             total = capacities[i]
             for s in self.problem.sservers:
@@ -703,7 +694,7 @@ class Solution:
                     else:
                         total += cp * (knapsacks[i] / sz)
                         break
-            self.__row_upper_bound(i, total, ub)
+            ub.extend(self.__row_upper_bound(i, total, ub))
 
         # Increment Capacity (For bound calculation)
         self.cp[c.pool] += capacity
@@ -729,7 +720,7 @@ class Solution:
                 knapsacks[j] -= sz if j != r else 0
 
         # Upper Bound
-        ub = [sys.maxsize] * self.problem.p
+        ub = []
         for i in range(self.problem.r):
             total = capacities[i]
             for s in self.problem.sservers:
@@ -741,7 +732,7 @@ class Solution:
                     else:
                         total += cp * (knapsacks[i] / sz)
                         break
-            self.__row_upper_bound(i, total, ub)
+            ub.extend(self.__row_upper_bound(i, total, ub))
         return tuple(sorted(ub))
 
     def __add(self: Solution, c: Component):
@@ -883,7 +874,7 @@ class Solution:
             aux = (full[i] + frac[i]) / self.problem.p
             for j in range(self.problem.p):
                 ub_r[j] = min(ub_r[j], aux)
-            ub.append(tuple(sorted(ub_r)))
+            ub.extend(tuple(sorted(ub_r)))
         return tuple(sorted(ub)), kp, lim, full, frac
 
     def __upper_bound_update_add(
@@ -933,7 +924,7 @@ class Solution:
                             break
                     ub_lim[i] += 1
             total = ub_full[i] + ub_frac[i]
-            ub.append(self.__row_upper_bound(i, total, ub_r))
+            ub.extend(self.__row_upper_bound(i, total, ub_r))
         return tuple(sorted(ub))
 
     def __upper_bound_update_remove(
@@ -965,7 +956,6 @@ class Solution:
                             ub_frac[i] = cap * (ub_kp[i] / sz)
                             break
                     ub_lim[i] += 1
-
             elif i == row and self.problem.pservers[c.server] <= ub_lim[i]:
                 ub_kp[i] -= size
                 ub_full[i] += capacity
@@ -980,7 +970,7 @@ class Solution:
                         ub_kp[i] += sz
                 ub_frac[i] = cap * (ub_kp[i] / sz)
             total = ub_full[i] + ub_frac[i]
-            ub.append(self.__row_upper_bound(i, total, ub_r))
+            ub.extend(self.__row_upper_bound(i, total, ub_r))
         return tuple(sorted(ub))
 
     def __upper_bound_update_forbid(
@@ -1016,7 +1006,7 @@ class Solution:
                             break
                     ub_lim[i] += 1
             total = ub_full[i] + ub_frac[i]
-            ub.append(self.__row_upper_bound(i, total, ub_r))
+            ub.extend(self.__row_upper_bound(i, total, ub_r))
         return tuple(sorted(ub))
 
     def __row_upper_bound(self: Solution, row: int, total: float, ub: list[float]):
@@ -1041,7 +1031,7 @@ class Solution:
         aux = total / count
         for i in nignored:
             ub[i] = min(ub[i], aux)
-        return tuple(sorted(ub))
+        return tuple(ub)
 
     def __non_repeating_lcg(self: Solution, n: int) -> Iterable[int]:
         if n > 0:

@@ -10,8 +10,8 @@ from .util import Timer, debug
 def first_improvement(solution: Solution, timer: Timer, zero: Any = 0) -> Solution:
     while not timer.finished():
         for move in solution.enum_local_move():
-            incr = solution.objective_increment_local(move)
-            if incr > zero:
+            incr = solution.objective_increment_local(move) 
+            if incr > zero: 
                 solution.step(move)
                 debug(f"SCORE: {solution.score()}")
                 break
@@ -38,12 +38,12 @@ def best_improvement(solution: Solution, timer: Timer, zero: Any = 0):
             debug(f"SCORE: {solution.score()}")
     return solution
 
-
 # Random Local Search
 def rls(solution: Solution, timer: Timer, zero: Any = 0) -> Solution:
     while not timer.finished():
         for move in solution.enum_random_local_move_wor():
             incr = solution.objective_increment_local(move)
+            # print(incr)
             if incr >= zero:
                 solution.step(move)
                 debug(f"SCORE: {solution.score()}")
@@ -59,8 +59,6 @@ def rls(solution: Solution, timer: Timer, zero: Any = 0) -> Solution:
 # print(f"SCORE (after kick): {solution.score()}")
 
 # Iterated Local Search
-
-
 def ils(solution: Solution, timer: Timer, kick: int = 3, zero: Any = 0) -> Solution:
     best = solution.copy()
     best_obj = best.objective_value()

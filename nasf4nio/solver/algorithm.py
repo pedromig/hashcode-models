@@ -10,10 +10,7 @@ from .util import Timer, debug
 # Beam Search
 def beam_search(problem: Problem, timer: Timer, beam_width: int = 10) -> Solution:
     solution = problem.empty_solution()
-    best, bobjv = (
-        (solution, solution.objective_value()
-         ) if solution.feasible() else (None, None)
-    )
+    best, bobjv = ((solution, solution.objective_value() ) if solution.feasible() else (None, None))
     l0 = [(solution.upper_bound(), solution)]
     while not timer.finished():
         l1 = []
@@ -38,31 +35,24 @@ def beam_search(problem: Problem, timer: Timer, beam_width: int = 10) -> Solutio
 
 # Iterated Greedy
 
-
 # cmin = min(candidates, key=operator.itemgetter(0))[0]
 # thresh = cmin + alpha * (cmax - cmin)
 # print([i.server for i in rcl])
 # print(c)
-def iterated_greedy(
-    problem: Problem, timer: Timer, alpha: float = 0.1, N: int = 10
-) -> Solution:
+def iterated_greedy(problem: Problem, timer: Timer, alpha: float = 0.1, n: int = 10) -> Solution:
     s = problem.empty_solution()
-    best, bobjv = (s.copy(), s.objective_value()
-                   ) if s.feasible() else (None, None)
+    best, bobjv = (s.copy(), s.objective_value()) if s.feasible() else (None, None)
     while not timer.finished():
-        candidates = [(s.upper_bound_increment_add(c), c)
-                      for c in s.enum_add_move()]
+        candidates = [(s.upper_bound_increment_add(c), c) for c in s.enum_add_move()]
         while len(candidates) != 0:
             cmax = max(candidates, key=operator.itemgetter(0))[0]
             rcl = [c for decr, c in candidates if decr == cmax]
             c = random.choice(rcl)
-            s.add(c)
-            if bobjv is not None and s.objective_value() <= bobjv:
+            s.add(c) 
+            if bobjv is not None and s.objective_value() < bobjv:
                 break
-            candidates = [
-                (s.upper_bound_increment_add(c), c) for c in s.enum_add_move()
-            ]
-
+            candidates = [(s.upper_bound_increment_add(c), c) for c in s.enum_add_move()] 
+            
         if s.feasible():
             obj = s.objective_value()
             if bobjv is None or obj > bobjv:
@@ -70,12 +60,11 @@ def iterated_greedy(
                 debug(f"SCORE: {s.score()}, UB: {s.upper_bound()}")
 
         # Destruction
-        for _ in range(N):
+        for _ in range(n):
             c = s.random_remove_move()
             if c is None:
                 break
             s.remove(c)
-        debug(f"SCORE: {s.score()}, UB: {s.upper_bound()}")
     return best
 
 
@@ -83,17 +72,13 @@ def iterated_greedy(
 # thresh = cmax - alpha * (cmax - cmin)
 # print(s.upper_bound(), s.score())
 # assert s.ub[0] == s.objv[0], f"{s.ub}\n{s.objv}"
-def grasp(
-    problem: Problem, timer: Timer,
-    alpha=0.1, local_search=None, *args, **kwargs
-):
+# # print(len(rcl))
+def grasp(problem: Problem, timer: Timer, alpha=0.1, local_search=None, *args, **kwargs):
     best, bobjv = None, None
     while not timer.finished():
         s = problem.empty_solution()
-        b, bobj = (s.copy(), s.objective_value()
-                   ) if s.feasible() else (None, None)
-        candidates = [(s.upper_bound_increment_add(c), c)
-                      for c in s.enum_add_move()]
+        b, bobj = (s.copy(), s.objective_value()) if s.feasible() else (None, None)
+        candidates = [(s.upper_bound_increment_add(c), c) for c in s.enum_add_move()]
         while len(candidates) != 0:
             cmax = max(candidates, key=operator.itemgetter(0))[0]
             rcl = [c for decr, c in candidates if decr == cmax]
@@ -103,9 +88,7 @@ def grasp(
                 obj = s.objective_value()
                 if bobj is None or obj > bobj:
                     b, bobj = s.copy(), obj
-            candidates = [
-                (s.upper_bound_increment_add(c), c) for c in s.enum_add_move()
-            ]
+            candidates = [(s.upper_bound_increment_add(c), c) for c in s.enum_add_move()]
         debug(f"SCORE: {s.score()}, UB: {s.upper_bound()}")
         if b is not None:
             if local_search is not None:

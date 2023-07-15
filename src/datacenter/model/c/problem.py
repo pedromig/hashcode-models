@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from .solution import Solution
 
-
 class Problem:
     def __init__(self: Problem, r: int, s: int, u: int, p: int, m: int,
                  unavailable: tuple[tuple], servers: tuple[tuple]) -> None:
@@ -89,7 +88,6 @@ class Problem:
 
     def __str__(self: Problem) -> str:
         s = f"{self.r} {self.s} {self.u} {self.p} {self.m}\n"
-        s += "\n".join(f"{row} {slot}" for row,
-                       slot in self.unavailable) + "\n"
+        s += "\n".join(f"{row} {slot}" for row, slot in self.unavailable) + "\n"
         s += "\n".join(f"{size} {capacity}" for size, capacity in self.servers)
         return s

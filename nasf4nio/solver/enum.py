@@ -6,7 +6,7 @@ from .util import debug
 
 
 def enum_first(problem: Problem) -> Solution:
-    solution = problem.empty_solution()
+    solution = problem.empty_solution() 
     while True:
         try:
             c = next(solution.enum_add_move())
@@ -15,7 +15,6 @@ def enum_first(problem: Problem) -> Solution:
         except StopIteration:
             break
     return solution
-
 
 def enum_first_elite(problem: Problem) -> Solution:
     solution = problem.empty_solution()
@@ -42,8 +41,8 @@ def enum_heuristic_first(problem: Problem) -> Solution:
     solution = problem.empty_solution()
     while True:
         try:
-            c = next(solution.enum_heuristic_add_move())
-            solution.add(c)
+            c = next(solution.enum_heuristic_add_move()) 
+            solution.add(c) 
             debug(f"SCORE: {solution.score()}, UB: {solution.upper_bound()}")
         except StopIteration:
             break
@@ -142,6 +141,9 @@ def enum_best_ub_increment(problem: Problem) -> Solution:
                 if aux > best_increment:
                     best_component = component
                     best_increment = aux
+                if aux == 0:
+                    break
+            # print(best_component)
             solution.add(best_component)
             debug(f"SCORE: {solution.score()}, UB: {solution.upper_bound()}")
         else:
