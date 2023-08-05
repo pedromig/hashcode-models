@@ -25,12 +25,12 @@ if __name__ == "__main__":
     # debug(problem) 
         
     # Default Solution 
-    # solution = problem.empty_solution() 
+    # solution = problem.empty_solution()    
     solution = problem.heuristic_solution()
     # solution = problem.random_solution()
      
     # Solvers
-
+    
     # solution.add(model.Component(problem, book=0, library=1)) 
     # solution.add(model.Component(problem, book=5, library=1))
     # solution.add(model.Component(problem, book=2, library=1))    
@@ -86,21 +86,22 @@ if __name__ == "__main__":
     # simulated_annealing = functools.partial(simulated_annealing, zero=ZERO)
      
     # print(repr(solution.quota)) 
-    debug("SCORE BEFORE LS:", solution.score()) 
+    # debug("SCORE BEFORE LS:", solution.score()) 
     # solution = first_improvement(solution, Timer(1800))
     # solution = best_improvement(solution, Timer(60))
     # # solution = ils(solution, Timer(1800), kick=3)
-    solution = rls(solution, Timer(1800))
+    solution = rls(solution, Timer(18000))
     # # solution = simulated_annealing(solution, Timer(60))
 
     # # solution = grasp(problem, Timer(1800), local_search=None)
+    # solution = hgrasp(problem, Timer(1800), alpha=0.5, local_search=None)
     # # print(len(solution.used), len(problem.scores), sum([i <= problem.d for i in solution.start]))
     
     # # print(list(solution.enum_heuristic_add_move()))
     # print(solution.order, solution.start)
     # print(len(solution.libraries))
     
-    # debug("SCORE:", solution.score()) 
+    debug("SCORE:", solution.score()) 
     # debug("OBJECTIVE VALUE:", solution.objective_value()) 
     # # debug("UPPER BOUND:", solution.upper_bound())  
  

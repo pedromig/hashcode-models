@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from .solution import Solution
 from .component import Component
+
+
 import time
+import operator
+
 
 class Problem:
     def __init__(self: Problem, b: int, l: int, d: int, scores: tuple[tuple[int, ...]], 
@@ -21,38 +25,68 @@ class Problem:
         
     def empty_solution(self: Problem) -> Solution:
       return Solution(self)
-    
-    def heuristic_solution(self: Problem) -> Solution: 
-      solution = self.empty_solution()
-      
-      while len(libraries := sorted(
-          set(range(self.l)).symmetric_difference(solution.libraries), 
-          key = lambda lib: sum([self.scores[x] for x in self.sbooks[lib]][:(self.d - solution.day - self.signup[lib]) * self.rate[lib]]) / self.signup[lib],
-          reverse=True)):
-        if solution.day + self.signup[libraries[0]] < self.d:
-          solution.add(Component(self, None, libraries[0]))
-        else:
-          break
-      
-      solution.objv , solution.used, solution.books, solution.quota, solution.freq = solution.assign_books_optimally(solution.freq, init=True)
-      
-      # for book in sorted(range(self.b), key = lambda b: self.scores[b] / len(self.libraries[b]) if len(self.libraries[b]) != 0 else 0, reverse=False):
-      #   for library in self.libraries[book]:
-      #     if library in solution.libraries and solution.quota[library] > 0 and book not in solution.used and book not in solution.books[library]:
-      #       solution.add(Component(self, book, library))
-      
-      # for library in solution.libraries: 
-      #   for book in self.sbooks[library]: 
-      #     if solution.quota[library] > 0 and book not in solution.used: 
-      #       solution.add(Component(self, book, library))
-       
-      return solution
-      
+     
     def random_solution(self: Problem) -> Solution:
       solution = self.empty_solution()
       while (c := solution.random_add_move()) is not None:
         solution.add(c)
       return solution
+     
+    def heuristic_solution(self: Problem) -> Solution: 
+      solution = self.empty_solution()
+      
+      #while len(libraries := sorted(
+      #    set(range(self.l)).symmetric_difference(solution.libraries), 
+      #    key = lambda lib: sum([self.scores[x] for x in self.sbooks[lib]][:(self.d - solution.day - self.signup[lib]) * self.rate[lib]]) / self.signup[lib],
+      #    reverse=True)):
+      #  if solution.day + self.signup[libraries[0]] < self.d:
+      #    solution.add(Component(self, libraries[0]))
+      #  else:
+      #    break
+      
+      # while len(libraries := sorted(set(range(self.l)).symmetric_difference(solution.libraries), key = lambda l: max(0, min(self.rate[l] * len(self.books[l]), self.d) - self.signup[l] - solution.day), reverse=True)):
+      #   if solution.day + self.signup[libraries[0]] < self.d:
+      #     solution.add(Component(self, libraries[0]))
+      #   else:
+      #     break
+        
+      # while len(libraries := sorted(set(range(self.l)).symmetric_difference(solution.libraries), key = lambda l: (self.signup[l], self.b - len(set(self.books[l]))))):
+      #   if solution.day + self.signup[libraries[0]] < self.d:
+      #     solution.add(Component(self, libraries[0]))
+      #   else:
+      #     break
+       
+      # used = set()
+      # while len(libraries := sorted(
+      #     set(range(self.l)).symmetric_difference(solution.libraries), 
+      #     key = lambda l: sum(
+      #       [self.scores[x] for x in self.sbooks[l] if x not in used]
+      #       [:(self.d - solution.day - self.signup[l]) * self.rate[l]]
+      #       ) / self.signup[l],
+      #     reverse=True)):
+      #   if solution.day + self.signup[libraries[0]] < self.d:
+      #     for book in [b for b in self.sbooks[libraries[0]] if b not in used][:(self.d - solution.day - self.signup[libraries[0]]) * self.rate[libraries[0]]]:
+      #       used.add(book)
+      #     solution.add(Component(self, libraries[0]))
+      #   else:
+      #     break
+      
+      # used = set()
+      # while len(libraries := sorted(
+      #     set(range(self.l)).symmetric_difference(solution.libraries), 
+      #     key = lambda l: len(x for x in self.sbooks[l] if x not in used), reverse=True)):
+      #   if solution.day + self.signup[libraries[0]] < self.d:
+      #     for book in [b for b in self.sbooks[libraries[0]] if b not in used][:(self.d - solution.day - self.signup[libraries[0]]) * self.rate[libraries[0]]]:
+      #       used.add(book)
+      #     solution.add(Component(self, libraries[0]))
+      #   else:
+      #     break
+      
+      while c := next(solution.enum_heuristic_add_move(), None):
+        solution.add(c)
+
+      return solution
+    
  
     @staticmethod
     def from_stdin() -> Problem:
@@ -70,7 +104,7 @@ class Problem:
         books[i] = tuple(map(int, input().split()))
         
       return Problem(b, l, d, scores, tuple(books), tuple(signup), tuple(size), tuple(rate)) 
-      
+     
     def __init_problem(self: Problem) -> None: 
       # Books / Library
       libraries = [None] * self.b
@@ -85,10 +119,7 @@ class Problem:
       sbooks = [None] * self.l
       pbooks = [None] * self.l
       for lib in range(self.l):
-        assert len(set(self.books[lib])) == len(self.books[lib])
-        sbooks[lib] = tuple(sorted(self.books[lib], 
-                                   key = lambda b: (self.scores[b], self.l - len(libraries[b])), 
-                                   reverse=False))
+        sbooks[lib] = tuple(sorted(self.books[lib], key = lambda b: self.scores[b], reverse=True))
         pbooks[lib] = dict()
         for i in range(len(sbooks[lib])):
           pbooks[lib][sbooks[lib][i]] = i 

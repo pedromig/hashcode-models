@@ -43,7 +43,6 @@ def rls(solution: Solution, timer: Timer, zero: Any = 0) -> Solution:
     while not timer.finished():
         for move in solution.enum_random_local_move_wor():
             incr = solution.objective_increment_local(move)
-            # print(incr)
             if incr >= zero:
                 solution.step(move)
                 debug(f"SCORE: {solution.score()}")

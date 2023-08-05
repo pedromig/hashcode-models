@@ -6,7 +6,6 @@ from ..solution import Solution
 
 from .util import Timer, debug
 
-
 # Beam Search
 def beam_search(problem: Problem, timer: Timer, beam_width: int = 10) -> Solution:
     solution = problem.empty_solution()
@@ -31,7 +30,6 @@ def beam_search(problem: Problem, timer: Timer, beam_width: int = 10) -> Solutio
                     debug(f"SCORE: {s.score()}, UB: {s.upper_bound()}")
             l0.append((ub, s))
     return best
-
 
 # Iterated Greedy
 
