@@ -34,16 +34,16 @@ AcceptanceCriteria = Optional[Callable[[float, float], float]]
 class SimulatedAnnealing:
     def __init__(self: Self, temperature: float,
                  seed: Optional[int] = None,
-                 decay: Optional[TemperatureDecay] = LinearDecay,
-                 acceptance: Optional[AcceptanceCriteria] = ExponentialAcceptance) -> None:
+                 decay: Optional[TemperatureDecay] = None,
+                 acceptance: Optional[AcceptanceCriteria] = None) -> None:
         self.temperature = temperature
-        self.decay = decay
-        self.acceptance = acceptance
+        self.decay = LinearDecay(self.temperature) if decay is None else decay
+        self.acceptance = ExponentialAcceptance() if acceptance is None else acceptance
         
         if seed is not None:
             random.seed(seed)
   
-    def __class__(self: Self, solution: Solution, timer: Timer) -> Solution:
+    def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:
         best = solution.copy()
         bobjv = cast(T, best.objective())
         while not timer.finished():

@@ -66,7 +66,7 @@ class GRASP:
                 candidates = [(cast(T, s.upper_bound_increment_add(c)), c) for c in s.add_moves()]
             if b is not None:
                 if self.local_search is not None:
-                    b: Solution = self.local_search(b, **self.kwargs)
+                    b = cast(Solution, self.local_search(b, **self.kwargs))
                     if b is not None and b.feasible():
                         bobj = cast(T, b.objective())
                 if bobjv is None or bobj > bobjv:

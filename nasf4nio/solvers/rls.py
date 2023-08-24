@@ -19,15 +19,17 @@ class SolutionProtocol(Protocol[T, LocalMove]):
 Solution = TypeVar('Solution', bound=SolutionProtocol)
     
 class RLS:
-    def __init__(self: Self, zero: Optional[Any] = 0):
+    def __init__(self: Self, zero: Any = 0):
         self.zero = zero
 
     def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:
         while not timer.finished():
             for move in solution.random_local_moves_wor():
-                delta = cast(T, solution.objective_increment_local(move))
-                if delta >= self.zero:
+                incr = cast(T, solution.objective_increment_local(move))
+                print(incr)
+                if incr >= self.zero:
                     solution.step(move)
+                    print(solution.score())
                     break
                 if timer.finished():
                     return solution

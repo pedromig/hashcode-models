@@ -60,6 +60,7 @@ class GreedyObjectiveConstruction:
                     default = None,
                     key = itemgetter(0))) is not None:
             solution.add(c[1])
+            print(solution.score())
         return solution
                 
     class SolutionProtocol(Protocol[T, Component]):

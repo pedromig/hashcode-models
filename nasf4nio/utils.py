@@ -14,17 +14,17 @@ T = TypeVar('T')
 
 class Timer:
     def __init__(self: Self, budget: Optional[float] = None) -> None:
-        self.budget = math.inf if budget is None else budget 
+        self.limit = math.inf if budget is None else budget 
         self.start = time.perf_counter()
     
     def budget(self: Self) -> float:
-        return self.budget
+        return self.limit
 
     def elapsed(self: Self) -> float:
         return time.perf_counter() - self.start
 
     def finished(self) -> bool:
-        return self.elapsed() > self.budget
+        return self.elapsed() > self.limit
 
 @dataclass 
 class ConstantDecay:

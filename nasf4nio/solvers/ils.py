@@ -23,8 +23,7 @@ class SolutionProtocol(Protocol[T, LocalMove]):
 Solution = TypeVar('Solution', bound=SolutionProtocol)
 
 class ILS:
-    def __init__(self: Self, ks: Optional[int] = 3,
-                 zero: Optional[Any] = 0) -> None:
+    def __init__(self: Self, ks: Optional[int] = 3, zero: Any = 0) -> None:
         self.ks = ks 
         self.zero = zero
   
@@ -42,12 +41,13 @@ class ILS:
                     if obj > bobjv:
                         return solution
                     else:
-                      return best
+                        return best
             else:
                 obj = cast(T, solution.objective())
                 if obj >= bobjv:
                     best = solution.copy()
                     bobjv = obj
+                    print(best.score())
                 else:
                     solution = best.copy()
                 solution.perturb(self.ks)

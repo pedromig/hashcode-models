@@ -19,7 +19,7 @@ class SolutionProtocol(Protocol[T, LocalMove]):
 Solution = TypeVar('Solution', bound=SolutionProtocol)
 
 class BestImprovement: 
-    def __init__(self: Self, zero: Optional[Any] = 0) -> None:
+    def __init__(self: Self, zero: Any = 0) -> None:
         self.zero = zero
     
     def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:
@@ -27,7 +27,7 @@ class BestImprovement:
             bincr, bmove = self.zero, None
             for move in solution.local_moves():
                 incr = cast(T, solution.objective_increment_local(move))
-                if incr >= bincr:
+                if incr > bincr:
                     bincr = incr
                     bmove = move
                 if timer.finished():

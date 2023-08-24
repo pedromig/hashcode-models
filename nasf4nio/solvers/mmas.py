@@ -61,33 +61,6 @@ class MMAS:
         if seed is not None:
             random.seed(seed)
 
-    def ant(self: Self, solution: Solution, tau: dict[T, float]) -> Solution:
-        while True:
-            cs, cszero, p = [], [], []
-            best = None
-            for c in solution.add_moves():
-                k = cast(Component, c).id()
-                incr = solution.upper_bound_increment_add(c)
-                if incr is None:
-                    raise ValueError("Upper Bound Increment cannot be NoneType")
-                if isclose(incr, 0.0):
-                    cszero.append(c)
-                else:
-                    cs.append(c)
-                    p.append((tau[k]**self.alpha) * ((1.0 / incr) ** self.beta))
-            if best is None:
-                if len(cszero) > 0:
-                    best = random.choice(cszero)
-                elif len(cs) > 0:
-                    if sum(p) > 0:
-                        best = random.choices(cs, p, k = 1)[0]
-                    else:
-                        best = random.choice(cs)
-                else:
-                    break
-            solution.add(best)
-        return solution
-
     def __call__(self: Self, population: Population, timer: Timer) -> Optional[Solution]:
         tau_min = self.tau_max / self.a
         tau0 = self.tau_max
@@ -157,3 +130,30 @@ class MMAS:
                 for k in tau:
                     tau[k] = tau0
         return best
+    
+    def ant(self: Self, solution: Solution, tau: dict[T, float]) -> Solution:
+        while True:
+            cs, cszero, p = [], [], []
+            best = None
+            for c in solution.add_moves():
+                k = cast(Component, c).id()
+                incr = solution.upper_bound_increment_add(c)
+                if incr is None:
+                    raise ValueError("Upper Bound Increment cannot be NoneType")
+                if isclose(incr, 0.0):
+                    cszero.append(c)
+                else:
+                    cs.append(c)
+                    p.append((tau[k]**self.alpha) * ((1.0 / incr) ** self.beta))
+            if best is None:
+                if len(cszero) > 0:
+                    best = random.choice(cszero)
+                elif len(cs) > 0:
+                    if sum(p) > 0:
+                        best = random.choices(cs, p, k = 1)[0]
+                    else:
+                        best = random.choice(cs)
+                else:
+                    break
+            solution.add(best)
+        return solution

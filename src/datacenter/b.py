@@ -9,6 +9,8 @@ import copy
 import math
 import operator
 
+from nasf4nio.utils import non_repeating_lcg
+
 class Problem:
     def __init__(self: Problem, r: int, s: int, u: int, p: int, m: int,
                 unavailable: tuple[tuple[int, int]], 
@@ -27,7 +29,7 @@ class Problem:
     
     def heuristic_solution(self: Problem) -> Solution:
         solution = self.empty_solution()
-        while c := next(solution.heuristic_add_moves(), None):
+        while c := next(solution.heuristic_add_moves(), None) is not None:
             solution.add(c)
         return solution
 
@@ -145,38 +147,52 @@ class Solution:
     def score(self: Solution) -> int:
         return min(self.gc)
 
-    def objective_value(self: Solution) -> tuple[int, ...]:
+    def objective(self: Solution) -> tuple[int, ...]:
         return self.objv
 
     def upper_bound(self: Solution) -> tuple[float, ...]:
         return self.ub
-
+     
+    def components(self: Solution) -> Iterable[Component]:
+        for server in self.used:
+            yield Component(server, *self.alloc[server])
+ 
     def add_moves(self: Solution) -> Iterable[Component]:
-        if self.iserver < self.problem.m:
-            server = self.problem.sservers[self.iserver]
-            if server in self.unused:
+        def standard() -> Iterable[Component]:
+            for server in self.unused:
                 for pool in range(self.problem.p):
                     for row in range(self.problem.r):
                         for segment in self.problem.rows[row]:
                             if self.__fits(server, segment):
-                                yield Component(self.problem, server, pool, segment)
-                yield Component(self.problem, server)
+                                yield Component(server, pool, segment)
+                yield Component(server)
+        
+        def sequence() -> Iterable[Component]:
+            if self.iserver < self.problem.m:
+                server = self.problem.sservers[self.iserver]
+                if server in self.unused:
+                    for pool in range(self.problem.p):
+                        for row in range(self.problem.r):
+                            for segment in self.problem.rows[row]:
+                                if self.__fits(server, segment):
+                                    yield Component(server, pool, segment)
+                yield Component(server)
+        yield from sequence()
                 
     def heuristic_add_moves(self: Solution) -> Iterable[Component]:
-        if self.iserver < self.problem.m:
-            server = self.problem.sservers[self.iserver]
-            if server in self.used:
+        for server in self.problem.sservers:
+            if server in self.unused:
                 for pool in sorted(range(self.problem.p), key=lambda x: self.gc[x]):
                     for row in sorted(range(self.problem.r), key=lambda x: self.rc[pool][x]):
                         for segment in self.problem.rows[row]:
                             if self.__fits(server, segment):
-                                yield Component(self.problem, server, pool, segment)
-                yield Component(self.problem, server)
+                                yield Component(server, pool, segment)
+                yield Component(server)
 
     def remove_moves(self: Solution) -> Iterable[Component]:
         for server in self.used:
             pool, segment = self.alloc[server]
-            yield Component(self.problem, server, pool, segment)
+            yield Component(server, pool, segment)
  
     def local_moves(self: Solution) -> Iterable[LocalMove]:
         # Add (unused) Servers
@@ -185,12 +201,12 @@ class Solution:
                 for segment in self.problem.rows[r]:
                     if self.__fits(add, segment):
                         for p in range(self.problem.p):
-                            yield LocalMove(self.problem, (add, p, segment), None)
+                            yield LocalMove((add, p, segment), None)
 
         # Remove (used) Servers
         for remove in self.used:
             pool, segment = self.alloc[remove]
-            yield LocalMove(self.problem, None, (remove, pool, segment))
+            yield LocalMove(None, (remove, pool, segment))
 
         # Change (used) Server Segment
         for server in self.used:
@@ -198,14 +214,14 @@ class Solution:
             for r in range(self.problem.r):
                 for seg in self.problem.rows[r]:
                     if seg != segment and self.__fits(server, seg):
-                        yield LocalMove(self.problem, (server, pool, seg), (server, pool, segment))
+                        yield LocalMove((server, pool, seg), (server, pool, segment))
 
         # Change (used) Server Pool
         for server in self.used:
             pool, segment = self.alloc[server]
             for p in range(self.problem.p):
                 if p != pool:
-                    yield LocalMove(self.problem, (server, p, segment), (server, pool, segment))
+                    yield LocalMove((server, p, segment), (server, pool, segment))
 
         # Swap (used) servers pools/segments
         for i in self.used:
@@ -214,9 +230,9 @@ class Solution:
                     pi, si = self.alloc[i]
                     pj, sj = self.alloc[j]
                     if si != sj and self.__swappable(i, j):
-                        yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_segment=True)
+                        yield LocalMove((i, pi, si), (j, pj, sj), swap_segment=True)
                     if pi != pj:
-                        yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_pool=True)
+                        yield LocalMove((i, pi, si), (j, pj, sj), swap_pool=True)
                         
     def random_local_moves_wor(self: Solution) -> Iterable[LocalMove]:
         used = list(self.used)
@@ -241,7 +257,7 @@ class Solution:
                 # Decode Pool
                 pool = move % self.problem.p
                 if self.__fits(server, segment):
-                    yield LocalMove(self.problem, (server, pool, segment), None)
+                    yield LocalMove((server, pool, segment), None)
                 continue
             move -= add_moves
 
@@ -254,7 +270,7 @@ class Solution:
                 pool, segment = self.alloc[server]
 
                 # Local Move
-                yield LocalMove(self.problem, None, (server, pool, segment))
+                yield LocalMove(None, (server, pool, segment))
                 continue
             move -= remove_moves
 
@@ -271,7 +287,7 @@ class Solution:
 
                 # Local Move
                 if seg != segment and self.__fits(server, seg):
-                    yield LocalMove(self.problem, (server, pool, seg), (server, pool, segment))
+                    yield LocalMove((server, pool, seg), (server, pool, segment))
                 continue
             move -= change_segment_moves
 
@@ -288,7 +304,7 @@ class Solution:
 
                 # Local Move
                 if p != pool:
-                    yield LocalMove(self.problem, (server, p, segment), (server, pool, segment))
+                    yield LocalMove((server, p, segment), (server, pool, segment))
                 continue
             move -= change_pool_moves
 
@@ -308,10 +324,13 @@ class Solution:
             pj, sj = self.alloc[j]
             if move:
                 if si != sj and self.__swappable(i, j):
-                    yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_segment=True)
+                    yield LocalMove((i, pi, si), (j, pj, sj), swap_segment=True)
             else:
                 if pi != pj:
-                    yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_pool=True)
+                    yield LocalMove((i, pi, si), (j, pj, sj), swap_pool=True)
+                    
+    def heuristic_add_move(self: Solution) -> Component:
+        return next(self.heuristic_add_moves(), None)
 
     def random_add_move(self: Solution) -> Component:
         unused = list(self.unused)
@@ -326,14 +345,14 @@ class Solution:
                 for segment in segments:
                     pool = random.choice(pools)
                     if self.__fits(server, segment):
-                        return Component(self.problem, server, pool, segment)
+                        return Component(server, pool, segment)
 
     def random_remove_move(self: Solution) -> Component:
         used = list(self.used)
         random.shuffle(used)
         for server in used:
             pool, segment = self.alloc[server]
-            return Component(self.problem, server, pool, segment)
+            return Component(server, pool, segment)
 
     def random_local_move(self: Solution) -> LocalMove:
         return next(self.random_local_moves_wor(), None)
@@ -378,10 +397,10 @@ class Solution:
             self.__swap_segment(move.add, move.remove)
         else:
             if move.remove is not None:
-                self.__remove(Component(self.problem, *move.remove))
+                self.__remove(Component(*move.remove))
 
             if move.add is not None:
-                self.__add(Component(self.problem, *move.add))
+                self.__add(Component(*move.add))
 
         # Update Objective Value
         self.objv = tuple(sorted(self.gc))
@@ -395,7 +414,7 @@ class Solution:
 
     def objective_increment_add(self: Solution, c: Component) -> tuple[int, ...]:
         if self.__forbidden(c):
-            return self.objv
+            return tuple([0] * self.problem.p) 
         else:
             cp = self.cp[c.pool] + self.problem.servers[c.server][1]
             rc = (self.rc[c.pool][self.problem.segments[c.segment][0]] + self.problem.servers[c.server][1])
@@ -406,12 +425,12 @@ class Solution:
 
     def objective_increment_remove(self: Solution, c: Component) -> tuple[int, ...]: 
         if self.__forbidden(c):
-            return self.objv 
+            return tuple([0] * self.problem.p) 
         else:
-            gc, rc = self.gc.copy(), self.rc.copy()
+            gc, rc = self.gc.copy(), copy.deepcopy(self.rc)
             cp = self.cp[c.pool] - self.problem.servers[c.server][1] 
-            rc[c.pool] = (self.rc[c.pool][self.problem.segments[c.segment][0]] - self.problem.servers[c.server][1])
-            gc[c.pool] = cp - max(rc)
+            rc[c.pool][self.problem.segments[c.segment][0]] -= self.problem.servers[c.server][1]
+            gc[c.pool] = cp - max(rc[c.pool])
             gc.sort() 
             return tuple(map(operator.sub, tuple(gc), self.objv))
 
@@ -501,7 +520,6 @@ class Solution:
         return tuple(map(operator.sub, ub, self.ub))
 
     def upper_bound_increment_remove(self: Solution, c: Component) -> tuple[float, ...]:
-
         _, capacity = self.problem.servers[c.server]
         row, _, _ = self.problem.segments[c.segment]
 
@@ -515,21 +533,6 @@ class Solution:
         self.rc[c.pool][row] += capacity
 
         return tuple(map(operator.sub, ub, self.ub))
-
-    def _objective_value(self: Solution) -> tuple[int, ...]:
-        cp = [0] * self.problem.p
-        rc = [[0] * len(self.problem.rows) for _ in range(self.problem.p)]
-        for i, alloc in enumerate(self.alloc):
-            if alloc is not None:
-                pool, segment = alloc
-                _, capacity = self.problem.servers[i]
-                row, _, _ = self.problem.segments[segment]
-                cp[pool] += capacity
-                rc[pool][row] += capacity
-        return tuple(sorted(cp[p] - max(rc[p]) for p in range(self.problem.p)))
-
-    def _score(self: Solution) -> int:
-        return self._objective_value()[0]
 
     def _upper_bound_add(self: Solution, c: Component) -> tuple[int, ...]:
         size, capacity = self.problem.servers[c.server]
@@ -939,6 +942,14 @@ class Solution:
         aux = total / count
         for i in nignored:
             ub[i] = min(ub[i], aux)
+                    
+    def __eq__(self: Solution, other: Solution) -> bool:
+        for server in self.used:
+            if server in other.used and self.alloc[server] == other.alloc[server]:
+                continue
+            else:
+                return False
+        return True                
  
     def __str__(self: Solution) -> str:
         s, slots = "", [self.problem.segments[i][1] for i in range(len(self.problem.segments))]
@@ -954,7 +965,6 @@ class Solution:
 
 @dataclass(order=True) 
 class LocalMove:
-    problem: Problem 
     add: Optional[tuple[int]]
     remove: Optional[tuple[int]] 
     swap_segment: bool = False
@@ -962,24 +972,6 @@ class LocalMove:
     
 @dataclass(order=True)
 class Component: 
-    problem: Problem
     server: int
     pool: Optional[int] = None
     segment: Optional[int] = None
-    
-def non_repeating_lcg(n: int, seed: Optional[int] = None) -> Iterable[int]:
-    if seed is not None:
-        random.seed(seed)
-    "Pseudorandom sampling without replacement in O(1) space"
-    if n > 0:
-        a = 5 # always 5
-        m = 1 << math.ceil(math.log2(n))
-        if m > 1:
-            c = random.randrange(1, m, 2)
-            x = random.randrange(m)
-            for _ in range(m):
-                if x < n: 
-                    yield x
-                x = (a * x + c) % m
-        else:
-            yield 0

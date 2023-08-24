@@ -24,28 +24,28 @@ class SolutionProtocol(Protocol[T, LocalMove]):
 Solution = TypeVar('Solution', bound=SolutionProtocol)
 
 class TabuSearch:  
-    def __init__(self: Self, length: Optional[int] = 10,
-                 zero: Optional[Any] = 0) -> None:
+    def __init__(self: Self, length: int = 10,
+                 zero: Any = 0) -> None:
         self.length = length
         self.zero = zero
     
     def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:
-        tabu = set()    
+        tabu = list()    
         while not timer.finished():
             bincr, best = self.zero, None
             for move in solution.random_local_moves_wor():
                 incr = solution.objective_increment_local(move)
-                if incr >= bincr:
+                if incr >= bincr: 
                     s = solution.copy()
                     s.step(move)
-                    if not tabu[s]:
+                    if s not in tabu:
                         best, bincr = s, incr
                 if timer.finished():
                     break
             if best is None:
                 break
             else:
-                tabu.add(best)        
+                tabu.append(best)        
                 if len(tabu) > self.length:
                     tabu.pop(0)
         return best

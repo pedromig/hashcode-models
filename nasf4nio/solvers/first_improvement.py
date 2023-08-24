@@ -21,7 +21,8 @@ class FirstImprovement:
                 incr = cast(T, solution.objective_increment_local(move))
                 if incr > self.zero:
                     solution.step(move)
-                    break
+                    print(incr, solution.score())
+                    return solution
                 if timer.finished():
                     return solution
             else:
@@ -36,7 +37,7 @@ class FirstImprovement:
     Solution = TypeVar("Solution", bound=SolutionProtocol)
      
 class DeterministicFirstImprovement:
-    def __init__(self: Self, zero: Optional[Any] = 0) -> None:
+    def __init__(self: Self, zero: Any = 0) -> None:
         self.zero = zero
     
     def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:

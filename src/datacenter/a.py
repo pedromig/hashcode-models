@@ -12,7 +12,7 @@ from nasf4nio.tests import objective_increment_add_test
 from nasf4nio.utils import non_repeating_lcg
 
 @nio.property_test(objective_increment_add_test)
-class Problem(nio.Problem):    
+class Problem:    
     def __init__(self: Problem, r: int, s: int, u: int, p: int, m: int,
                  unavailable: tuple[tuple[int, int]], 
                  servers: tuple[tuple[int, int]]) -> None: 
@@ -94,22 +94,29 @@ class Problem(nio.Problem):
         s += "\n".join(f"{size} {capacity}" for size, capacity in self.servers)
         return s
 
-class Solution(nio.Solution): 
+class Solution: 
     def __init__(self: Solution, problem: Problem, used: Optional[set[int]] = None,
-        unused: Optional[set[int]] = None, alloc: Optional[list[tuple[int, int]]]= None,
+        unused: Optional[set[int]] = None, forbidden: Optional[set[int]] = None,
+        alloc: Optional[list[tuple[int, int]]]= None,
         ss: Optional[list[int]] = None, gc: Optional[list[int]] = None, 
         cp: Optional[list[int]] = None, rc: Optional[list[list[int]]] = None,
         mc: Optional[list[int]] = None, objv: Optional[int] = None, 
         ub: Optional[float] = None, ub_kp: Optional[list[int]] = None, 
         ub_lim: Optional[list[int]] = None, ub_full: Optional[list[int]] = None, 
-        ub_frac: Optional[list[int]] = None, init_ub: Optional[bool] = False) -> None: 
+        ub_frac: Optional[list[int]] = None, iserver: Optional[int] = None, 
+        init_ub: Optional[bool] = False) -> None: 
 
         # Problem
         self.problem = problem
-
-        # Solution
+        
+        # Solution 
+        self.iserver = 0 if iserver is None else iserver
+        
         self.used = set() if used is None else used
-        self.unused = set(range(self.problem.m)) if unused is None else unused
+        self.unused = set(range(self.problem.m)) if unused is None else unused 
+        self.forbidden = set() if forbidden is None else forbidden
+       
+        # Assignment 
         self.alloc = [None] * self.problem.m if alloc is None else alloc
 
         # Capacities and Sizes
@@ -129,10 +136,11 @@ class Solution(nio.Solution):
             self.ub, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac = ub, ub_kp, ub_lim, ub_full, ub_frac,
             
     def copy(self: Solution) -> Solution:
-        return Solution(self.problem, self.used.copy(), self.unused.copy(),
+        return Solution(self.problem, self.used.copy(), self.unused.copy(), self.forbidden.copy(),
             self.alloc.copy(), self.ss.copy(), self.gc.copy(), self.cp.copy(),
             copy.deepcopy(self.rc), self.mc.copy(), self.objv, copy.copy(self.ub),
-            self.ub_kp.copy(), self.ub_lim.copy(), self.ub_full.copy(), self.ub_frac.copy())
+            self.ub_kp.copy(), self.ub_lim.copy(), self.ub_full.copy(), self.ub_frac.copy(),
+            self.iserver)
 
     def feasible(self: Solution) -> bool:
         return True
@@ -146,14 +154,32 @@ class Solution(nio.Solution):
     def upper_bound(self: Solution) -> float:
         return self.ub
     
+    def components(self: Solution) -> Iterable[Component]:
+        for server in self.used:
+            yield Component(server, *self.alloc[server])
+    
     def add_moves(self: Solution) -> Iterable[Component]:
-        for server in self.unused:
-            for pool in range(self.problem.p):
-                for row in range(self.problem.r):
-                    for segment in self.problem.rows[row]:
-                        if self.__fits(server, segment):
-                            yield Component(server, pool, segment)
-
+        def standard() -> Iterable[Component]:
+            for server in self.unused:
+                for pool in range(self.problem.p):
+                    for row in range(self.problem.r):
+                        for segment in self.problem.rows[row]:
+                            if self.__fits(server, segment):
+                                yield Component(server, pool, segment)
+                yield Component(server)
+        
+        def sequence() -> Iterable[Component]:
+            if self.iserver < self.problem.m:
+                server = self.problem.sservers[self.iserver]
+                if server in self.unused:
+                    for pool in range(self.problem.p):
+                        for row in range(self.problem.r):
+                            for segment in self.problem.rows[row]:
+                                if self.__fits(server, segment):
+                                    yield Component(server, pool, segment)
+                    yield Component(server)
+        yield from sequence()
+            
     def heuristic_add_moves(self: Solution) -> Iterable[Component]:
         for server in self.problem.sservers:
             if server in self.unused:
@@ -162,7 +188,8 @@ class Solution(nio.Solution):
                         for segment in self.problem.rows[row]:
                             if self.__fits(server, segment):
                                 yield Component(server, pool, segment)
-
+                yield Component(server)
+            
     def remove_moves(self: Solution) -> Iterable[Component]:
         for server in self.unused:
             pool, segment = self.alloc[server]
@@ -175,12 +202,12 @@ class Solution(nio.Solution):
                 for segment in self.problem.rows[r]:
                     if self.__fits(add, segment):
                         for p in range(self.problem.p):
-                            yield LocalMove(self.problem, (add, p, segment), None)
+                            yield LocalMove((add, p, segment), None)
 
         # Remove (used) Servers
         for remove in self.used:
             pool, segment = self.alloc[remove]
-            yield LocalMove(self.problem, None, (remove, pool, segment))
+            yield LocalMove(None, (remove, pool, segment))
 
         # Change (used) Server Segment
         for server in self.used:
@@ -188,14 +215,14 @@ class Solution(nio.Solution):
             for r in range(self.problem.r):
                 for seg in self.problem.rows[r]:
                     if seg != segment and self.__fits(server, seg):
-                        yield LocalMove(self.problem, (server, pool, seg), (server, pool, segment))
+                        yield LocalMove((server, pool, seg), (server, pool, segment))
 
         # Change (used) Server Pool
         for server in self.used:
             pool, segment = self.alloc[server]
             for p in range(self.problem.p):
                 if p != pool:
-                    yield LocalMove(self.problem, (server, p, segment), (server, pool, segment))
+                    yield LocalMove((server, p, segment), (server, pool, segment))
 
         # Swap (used) servers pools/segments
         for i in self.used:
@@ -204,9 +231,9 @@ class Solution(nio.Solution):
                     pi, si = self.alloc[i]
                     pj, sj = self.alloc[j]
                     if si != sj and self.__swappable(i, j):
-                        yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_segment=True)
+                        yield LocalMove((i, pi, si), (j, pj, sj), swap_segment=True)
                     if pi != pj:
-                        yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_pool=True)
+                        yield LocalMove((i, pi, si), (j, pj, sj), swap_pool=True)
 
     def random_local_moves_wor(self: Solution) -> Iterable[LocalMove]:
         used = list(self.used)
@@ -231,7 +258,7 @@ class Solution(nio.Solution):
                 # Decode Pool
                 pool = move % self.problem.p
                 if self.__fits(server, segment):
-                    yield LocalMove(self.problem, (server, pool, segment), None)
+                    yield LocalMove((server, pool, segment), None)
                 continue
             move -= add_moves
 
@@ -244,7 +271,7 @@ class Solution(nio.Solution):
                 pool, segment = self.alloc[server]
 
                 # Local Move
-                yield LocalMove(self.problem, None, (server, pool, segment))
+                yield LocalMove(None, (server, pool, segment))
                 continue
             move -= remove_moves
 
@@ -261,10 +288,7 @@ class Solution(nio.Solution):
 
                 # Local Move
                 if seg != segment and self.__fits(server, seg):
-                    yield LocalMove(
-                        self.problem, (server, pool,
-                                       seg), (server, pool, segment)
-                    )
+                    yield LocalMove((server, pool, seg), (server, pool, segment))
                 continue
             move -= change_segment_moves
 
@@ -281,7 +305,7 @@ class Solution(nio.Solution):
 
                 # Local Move
                 if p != pool:
-                    yield LocalMove(self.problem, (server, p, segment), (server, pool, segment))
+                    yield LocalMove((server, p, segment), (server, pool, segment))
                 continue
             move -= change_pool_moves
 
@@ -301,10 +325,10 @@ class Solution(nio.Solution):
             pj, sj = self.alloc[j]
             if move:
                 if si != sj and self.__swappable(i, j):
-                    yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_segment=True)
+                    yield LocalMove((i, pi, si), (j, pj, sj), swap_segment=True)
             else:
                 if pi != pj:
-                    yield LocalMove(self.problem, (i, pi, si), (j, pj, sj), swap_pool=True)
+                    yield LocalMove((i, pi, si), (j, pj, sj), swap_pool=True)
                     
     def heuristic_add_move(self: Solution) -> Component:
         return next(self.heuristic_add_moves(), None)
@@ -335,14 +359,24 @@ class Solution(nio.Solution):
         return next(self.random_local_moves_wor(), None)
 
     def add(self: Solution, c: Component) -> None:
-        # Add Component
-        self.__add(c)
+        if self.__forbidden(c): 
+            # Forbid Component
+            self.__forbid(c)
 
-        # Update Objective Value
-        self.objv = min(self.gc)
+            # Update Bound
+            self.ub = self.__upper_bound_update_forbid(c, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac) 
+        else: 
+            # Add Component
+            self.__add(c)
 
-        # Update Bound
-        self.ub = self.__upper_bound_update_add(c, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac)
+            # Update Objective Value
+            self.objv = min(self.gc)
+
+            # Update Bound
+            self.ub = self.__upper_bound_update_add(c, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac)
+            
+        # Next Server
+        self.iserver += 1 
 
     def remove(self: Solution, c: Component) -> None:
         # Remove Component
@@ -353,6 +387,9 @@ class Solution(nio.Solution):
 
         # Update Bound
         self.ub = self.__upper_bound_update_remove(c, self.ub_kp, self.ub_lim, self.ub_full, self.ub_frac)
+        
+        # Reset next server 
+        self.iserver = 0
         
     def step(self: Solution, move: LocalMove) -> None:
         if move.swap_pool:
@@ -367,7 +404,7 @@ class Solution(nio.Solution):
                 self.__add(Component(*move.add))
 
         # Update Objective Value
-        self.objv = tuple(sorted(self.gc))
+        self.objv = min(self.gc)
         
         # Update Bound 
         self.ub = None
@@ -377,28 +414,27 @@ class Solution(nio.Solution):
             self.step(self.random_local_move())
 
     def objective_increment_add(self: Solution, c: Component) -> int:
-        cp = self.cp[c.pool] + self.problem.servers[c.server][1]
-        rc = (
-            self.rc[c.pool][self.problem.segments[c.segment][0]]
-            + self.problem.servers[c.server][1]
-        )
-        gc = self.gc.copy()
-        gc[c.pool] = cp - max(self.mc[c.pool], rc)
-        return min(gc) - self.objv
+        if self.__forbidden(c):
+            return 0
+        else:
+            cp = self.cp[c.pool] + self.problem.servers[c.server][1]
+            rc = self.rc[c.pool][self.problem.segments[c.segment][0]] + self.problem.servers[c.server][1]
+            gc = self.gc.copy()
+            gc[c.pool] = cp - max(self.mc[c.pool], rc)
+            return min(gc) - self.objv
 
-    def objective_increment_remove(self: Solution, c: Component) -> int: 
-        cap = self.problem.servers[c.server][1] 
-        row = self.problem.segments[c.segment][0]
-        
-        rc = self.rc.copy() 
-        cp = self.cp[c.pool] - cap
-        rc[c.pool] = self.rc[c.pool][row] - cap
-        objv = cp - max(rc)
-        
-        return objv - self.objv
+    def objective_increment_remove(self: Solution, c: Component) -> int:
+        if self.__forbidden(c):
+            return 0
+        else:
+            gc, rc = self.gc.copy(), self.rc.copy()
+            cp = self.cp[c.pool] - self.problem.servers[c.server][1]  
+            rc[c.pool][self.problem.segments[c.segment][0]] -= self.problem.servers[c.server][1]
+            gc[c.pool] = cp - max(rc[c.pool])
+            return min(gc) - self.objv
         
     def objective_increment_local(self: Solution, m: LocalMove) -> int:
-        objv = self.objv
+        gc = self.gc.copy()
         if m.swap_segment or m.swap_pool:
             i, pi, si = m.add
             j, pj, sj = m.remove
@@ -441,7 +477,8 @@ class Solution(nio.Solution):
                 mci = max(rci)
                 mcj = max(rcj)
 
-            objv = min(objv, cpi - mci, cpj - mcj)
+            gc[pi] = cpi - mci
+            gc[pj] = cpj - mcj
         else:
             if m.add is not None:
                 server, pool, segment = m.add
@@ -450,7 +487,7 @@ class Solution(nio.Solution):
 
                 cp = self.cp[pool] + cap
                 rc = self.rc[pool][row] + cap
-                gcp = cp - max(self.mc[pool], rc)
+                gc[pool] = cp - max(self.mc[pool], rc)
 
             if m.remove is not None:
                 server, pool, segment = m.remove
@@ -459,22 +496,25 @@ class Solution(nio.Solution):
 
                 cp = self.cp[pool] - cap
                 rc = self.rc[pool][row] - cap
-                gcp = cp - max(self.rc[pool][:row] + self.rc[pool][row + 1:] + [rc])
-            objv = min(objv, gcp)
-        return objv - self.objv
+                gc[pool] = cp - max(self.rc[pool][:row] + self.rc[pool][row + 1:] + [rc]) 
+        return min(gc) - self.objv
 
     def upper_bound_increment_add(self: Solution, c: Component) -> float:
-        _, capacity = self.problem.servers[c.server]
-        row, _, _ = self.problem.segments[c.segment]
+        if self.__forbidden(c): 
+            ub = self.__upper_bound_update_forbid(c, self.ub_kp.copy(), self.ub_lim.copy(),
+                                                  self.ub_full.copy(), self.ub_frac.copy())
+        else:
+            _, capacity = self.problem.servers[c.server]
+            row, _, _ = self.problem.segments[c.segment]
 
-        self.cp[c.pool] += capacity
-        self.rc[c.pool][row] += capacity
+            self.cp[c.pool] += capacity
+            self.rc[c.pool][row] += capacity
 
-        ub = self.__upper_bound_update_add(c, self.ub_kp.copy(), self.ub_lim.copy(), 
-                                           self.ub_full.copy(), self.ub_frac.copy())
-        
-        self.cp[c.pool] -= capacity
-        self.rc[c.pool][row] -= capacity
+            ub = self.__upper_bound_update_add(c, self.ub_kp.copy(), self.ub_lim.copy(), 
+                                            self.ub_full.copy(), self.ub_frac.copy())
+            
+            self.cp[c.pool] -= capacity
+            self.rc[c.pool][row] -= capacity
         return ub - self.ub
 
     def upper_bound_increment_remove(self: Solution, c: Component) -> float:
@@ -500,6 +540,14 @@ class Solution(nio.Solution):
             self.ss[self.alloc[i][1]] - self.problem.servers[i][0] >= self.problem.servers[j][0]
             and self.ss[self.alloc[j][1]] - self.problem.servers[j][0] >= self.problem.servers[i][0]
         )
+         
+    def __forbid(self: Solution, c: Component) -> None:
+        # Forbid Server
+        self.unused.remove(c.server)
+        self.forbidden.add(c.server)
+        
+    def __forbidden(self: Solution, c: Component) -> bool:
+        return c.pool is None or c.segment is None
 
     def __add(self: Solution, c: Component) -> None:
         size, capacity = self.problem.servers[c.server]
@@ -507,7 +555,10 @@ class Solution(nio.Solution):
 
         # Allocate Server
         self.used.add(c.server)
-        self.unused.remove(c.server)
+        if c.server in self.forbidden:
+            self.forbidden.remove(c.server)
+        else:
+            self.unused.remove(c.server)
         self.alloc[c.server] = (c.pool, c.segment)
 
         # Update Remaining Segment Space
@@ -703,6 +754,33 @@ class Solution(nio.Solution):
             ub = min(ub, total / self.problem.p)
             ub = self.__row_upper_bound(i, total, ub)
         return ub
+    
+    def __upper_bound_update_forbid(self: Solution, c: Component, 
+                                    ub_kp: list[int], ub_lim: list[int],
+                                    ub_full: list[int], ub_frac: list[int]) -> float:
+        ub = sys.maxsize
+        size, capacity = self.problem.servers[c.server]
+        for i in range(self.problem.r):
+            if self.problem.pservers[c.server] <= ub_lim[i]:
+                if self.problem.pservers[c.server] < ub_lim[i]:
+                    ub_kp[i] += size
+                    ub_full[i] -= capacity
+                ub_frac[i] = 0
+                while ub_lim[i] < self.problem.m:
+                    sx = self.problem.sservers[ub_lim[i]]
+                    sz, cap = self.problem.servers[sx]
+                    if (sx in self.unused and sx != c.server and sx not in self.forbidden):
+                        if sz <= ub_kp[i]:
+                            ub_kp[i] -= sz
+                            ub_full[i] += cap
+                        else:
+                            ub_frac[i] = cap * (ub_kp[i] / sz)
+                            break
+                    ub_lim[i] += 1
+            total = ub_full[i] + ub_frac[i] 
+            ub = min(ub, total / self.problem.p)
+            ub = self.__row_upper_bound(i, total, ub)
+        return ub 
 
     def __row_upper_bound(self: Solution, row: int, total: float, ub: float) -> float:
         count = self.problem.p
@@ -717,6 +795,14 @@ class Solution(nio.Solution):
                 p = -1
             p += 1
         return ub 
+    
+    def __eq__(self: Solution, other: Solution) -> bool:
+        for server in self.used:
+            if server in other.used and self.alloc[server] == other.alloc[server]:
+                continue
+            else:
+                return False
+        return True                
 
     def __str__(self: Solution) -> str:
         s, slots = "", [self.problem.segments[i][1] for i in range(len(self.problem.segments))]
@@ -731,14 +817,14 @@ class Solution(nio.Solution):
         return s[:-1]
     
 @dataclass(order=True) 
-class LocalMove(nio.LocalMove):
+class LocalMove:
     add: Optional[tuple[int]]
     remove: Optional[tuple[int]] 
     swap_segment: bool = False
     swap_pool: bool = False
     
 @dataclass(order=True)
-class Component(nio.Component): 
+class Component: 
     server: int
-    pool: int
-    segment: int
+    pool: Optional[int] = None
+    segment: Optional[int] = None
