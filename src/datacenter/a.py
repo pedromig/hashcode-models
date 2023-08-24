@@ -6,13 +6,13 @@ from dataclasses import dataclass
 import sys
 import random
 import copy
-import math
-import operator
 
 import nasf4nio as nio
+from nasf4nio.tests import objective_increment_add_test
 from nasf4nio.utils import non_repeating_lcg
 
-class Problem(nio.Problem):
+@nio.property_test(objective_increment_add_test)
+class Problem(nio.Problem):    
     def __init__(self: Problem, r: int, s: int, u: int, p: int, m: int,
                  unavailable: tuple[tuple[int, int]], 
                  servers: tuple[tuple[int, int]]) -> None: 
@@ -140,7 +140,7 @@ class Solution(nio.Solution):
     def score(self: Solution) -> int:
         return self.objv 
 
-    def objective_value(self: Solution) -> int:
+    def objective(self: Solution) -> int:
         return self.objv
 
     def upper_bound(self: Solution) -> float:
@@ -152,7 +152,7 @@ class Solution(nio.Solution):
                 for row in range(self.problem.r):
                     for segment in self.problem.rows[row]:
                         if self.__fits(server, segment):
-                            yield Component(self.problem, server, pool, segment)
+                            yield Component(server, pool, segment)
 
     def heuristic_add_moves(self: Solution) -> Iterable[Component]:
         for server in self.problem.sservers:
@@ -161,12 +161,12 @@ class Solution(nio.Solution):
                     for row in sorted(range(self.problem.r), key=lambda x: self.rc[pool][x]):
                         for segment in self.problem.rows[row]:
                             if self.__fits(server, segment):
-                                yield Component(self.problem, server, pool, segment)
+                                yield Component(server, pool, segment)
 
     def remove_moves(self: Solution) -> Iterable[Component]:
         for server in self.unused:
             pool, segment = self.alloc[server]
-            yield Component(self.problem, server, pool, segment)
+            yield Component(server, pool, segment)
 
     def local_moves(self: Solution) -> Iterable[LocalMove]:
         # Add (unused) Servers
@@ -311,25 +311,25 @@ class Solution(nio.Solution):
 
     def random_add_move(self: Solution) -> Component:
         unused = list(self.unused)
-        random.shuffle(unused)
+        server = random.choice(unused)
         pools = list(range(self.problem.p))
         for server in unused:
             rows = list(range(self.problem.r))
-            random.shuffle(rows)
+            row = random.choice(rows)
             for row in rows:
                 segments = self.problem.rows[row].copy()
                 random.shuffle(segments)
                 for segment in segments:
                     pool = random.choice(pools)
                     if self.__fits(server, segment):
-                        return Component(self.problem, server, pool, segment)
+                        return Component(server, pool, segment)
 
     def random_remove_move(self: Solution) -> Component:
         used = list(self.used)
         random.shuffle(used)
         for server in used:
             pool, segment = self.alloc[server]
-            return Component(self.problem, server, pool, segment)
+            return Component(server, pool, segment)
 
     def random_local_move(self: Solution) -> LocalMove:
         return next(self.random_local_moves_wor(), None)
@@ -361,10 +361,10 @@ class Solution(nio.Solution):
             self.__swap_segment(move.add, move.remove)
         else:
             if move.remove is not None:
-                self.__remove(Component(self.problem, *move.remove))
+                self.__remove(Component(*move.remove))
 
             if move.add is not None:
-                self.__add(Component(self.problem, *move.add))
+                self.__add(Component(*move.add))
 
         # Update Objective Value
         self.objv = tuple(sorted(self.gc))
@@ -377,13 +377,14 @@ class Solution(nio.Solution):
             self.step(self.random_local_move())
 
     def objective_increment_add(self: Solution, c: Component) -> int:
-        cap = self.problem.servers[c.server][1]
-        row = self.problem.segments[c.segment][0] 
-        
-        cp, rc = self.cp[c.pool] + cap, self.rc[c.pool][row] + cap 
-        objv = min(cp - max(self.mc[c.pool], rc), self.objv) 
-        
-        return objv - self.objv
+        cp = self.cp[c.pool] + self.problem.servers[c.server][1]
+        rc = (
+            self.rc[c.pool][self.problem.segments[c.segment][0]]
+            + self.problem.servers[c.server][1]
+        )
+        gc = self.gc.copy()
+        gc[c.pool] = cp - max(self.mc[c.pool], rc)
+        return min(gc) - self.objv
 
     def objective_increment_remove(self: Solution, c: Component) -> int: 
         cap = self.problem.servers[c.server][1] 
@@ -731,7 +732,6 @@ class Solution(nio.Solution):
     
 @dataclass(order=True) 
 class LocalMove(nio.LocalMove):
-    problem: Problem 
     add: Optional[tuple[int]]
     remove: Optional[tuple[int]] 
     swap_segment: bool = False
@@ -739,7 +739,6 @@ class LocalMove(nio.LocalMove):
     
 @dataclass(order=True)
 class Component(nio.Component): 
-    problem: Problem
     server: int
     pool: int
     segment: int

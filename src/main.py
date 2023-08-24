@@ -11,19 +11,22 @@ import datacenter.a as model
 def debug(*args: object) -> None:
     print(*args, file=sys.stderr)
     
+    
+import nasf4nio as nio
+ 
 if __name__ == "__main__": 
     # Problem    
     problem = model.Problem.from_stdin()
     
     # Solution 
-    solution = problem.empty_solution() 
-    solution = problem.random_solution()
+    # solution = problem.empty_solution() 
+    # solution = problem.random_solution()
         
     # Solvers 
      
     # Constructive
     
-    solver = solvers.SimpleConstruction()
+    # solver = solvers.SimpleConstruction()
     
     # solver = solvers.HeuristicConstruction()
     # solver = solvers.NarrowGuidedHeuristicConstruction()
@@ -52,8 +55,10 @@ if __name__ == "__main__":
     
     # solution: model.Solution = solver(solution)
     
-    print(solution) 
-    debug("SCORE:", solution.score()) 
-    debug("OBJECTIVE VALUE:", solution.objective_value()) 
-    debug("UPPER BOUND:", solution.upper_bound())  
+    # Tests
+     
+    # print(solution) 
+    # debug("SCORE:", solution.score()) 
+    # debug("OBJECTIVE VALUE:", solution.objective_value()) 
+    # debug("UPPER BOUND:", solution.upper_bound())  
  
