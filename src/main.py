@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # solver = solvers.SimpleConstruction()
     
     # solver = solvers.HeuristicConstruction()
-    solver = solvers.NarrowGuidedHeuristicConstruction()
+    # solver = solvers.NarrowGuidedHeuristicConstruction()
     # solver = solvers.HGRASP()
     
     # solver = solvers.GreedyConstruction() 
@@ -40,9 +40,12 @@ if __name__ == "__main__":
     # solver = solvers.BeamSearch()
     # solver = solvers.GRASP(alpha=None)
     # solver = solvers.IteratedGreedy() 
-    # solver = solvers.MMAS()
+    solver = solvers.MMAS(1 - 1/solution.upper_bound())
+
+    population = [solution.copy() for _ in range(10)]
      
-    solution: model.Solution = solver(solution) 
+    solution: model.Solution = solver(population, Timer(1200))
+    # solution: model.Solution = solver(solution)
     debug("SCORE:", solution.score()) 
     debug("UPPER BOUND:", solution.upper_bound())  
     

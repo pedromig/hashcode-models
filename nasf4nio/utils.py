@@ -41,7 +41,7 @@ class LinearDecay:
 @dataclass
 class ExponentialAcceptance:
     def __call__(self: Self, delta: float, temperature: float) -> float:
-        return math.exp(- delta / temperature) if delta > 0 else 1.0
+        return math.exp(delta / temperature) if delta < 0 else 1.0
      
 def argmax(seq: Iterable[T]) -> int:
     return max(enumerate(seq), key=itemgetter(1))[0]

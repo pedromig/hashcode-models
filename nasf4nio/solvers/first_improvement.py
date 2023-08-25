@@ -21,7 +21,7 @@ class FirstImprovement:
                 incr = cast(T, solution.objective_increment_local(move))
                 if incr > self.zero:
                     solution.step(move)
-                    print(incr, solution.score())
+                    print(solution.score())
                     return solution
                 if timer.finished():
                     return solution

@@ -26,7 +26,6 @@ class RLS:
         while not timer.finished():
             for move in solution.random_local_moves_wor():
                 incr = cast(T, solution.objective_increment_local(move))
-                print(incr)
                 if incr >= self.zero:
                     solution.step(move)
                     print(solution.score())

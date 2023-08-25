@@ -35,6 +35,7 @@ class ILS:
                 incr = cast(T, solution.objective_increment_local(move))
                 if incr > self.zero:
                     solution.step(move)
+                    print(solution.score())
                     break
                 if timer.finished():
                     obj = cast(T, solution.objective())

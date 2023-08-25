@@ -24,6 +24,9 @@ class Problem:
         # Setup
         self.__init_problem()
 
+        print(f"Pools: {self.p}")
+        print(f"Segments: {len(self.segments)}")
+
     def empty_solution(self: Problem) -> Solution:
         return Solution(self, init_ub=True)
     
@@ -828,3 +831,6 @@ class Component:
     server: int
     pool: Optional[int] = None
     segment: Optional[int] = None
+
+    def id(self):
+        return self.server, self.pool, self.segment

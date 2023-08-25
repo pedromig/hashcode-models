@@ -128,7 +128,7 @@ class Solution:
         self.mc = [0] * self.problem.p if mc is None else mc
 
         # Objective Value
-        self.objv = tuple([tuple([0] * len(self.problem.rows)) for _ in range(self.problem.p)]) if objv is None else objv
+        self.objv = tuple([tuple([0] * self.problem.p) for _ in range(len(self.problem.rows))]) if objv is None else objv
         
         # Upper Bound
         if ub is None and init_ub:
@@ -373,7 +373,7 @@ class Solution:
             self.__add(c)
 
             # Update Objective Value
-            self.objv = tuple(map(tuple, map(sorted,zip(*map(sorted, self.rc))))) 
+            self.objv = tuple(map(tuple, map(sorted, zip(*map(lambda c, l: sorted(c-i for i in l), self.cp, self.rc)))))
 
             # Update Bound
             self.ub = self.__upper_bound_update_add(c, self.ub_kp, self.ub_lim, 
@@ -387,7 +387,7 @@ class Solution:
         self.__remove(c)
 
         # Update Objective Value
-        self.objv = tuple(map(tuple, map(sorted,zip(*map(sorted, self.rc))))) 
+        self.objv = tuple(map(tuple, map(sorted, zip(*map(lambda c, l: sorted(c-i for i in l), self.cp, self.rc)))))
 
         # Update Bound
         self.ub = self.__upper_bound_update_remove(c, self.ub_kp, self.ub_lim, 
@@ -406,7 +406,7 @@ class Solution:
                 self.__add(Component(*move.add))
 
         # Update Objective Value
-        self.objv = tuple(map(tuple, map(sorted, zip(*map(sorted, self.rc))))) 
+        self.objv = tuple(map(tuple, map(sorted, zip(*map(lambda c, l: sorted(c-i for i in l), self.cp, self.rc)))))
 
         # Update Bound
         self.ub = None
@@ -417,20 +417,20 @@ class Solution:
 
     def objective_increment_add(self: Solution, c: Component) -> tuple[int, ...]:
         if self.__forbidden(c):
-            return tuple([tuple([0] * len(self.problem.rows)) for _ in range(self.problem.p)])
+            return tuple([tuple([0] * self.problem.p) for _ in range(len(self.problem.rows))])
         else:
             rc = copy.deepcopy(self.rc)
             rc[c.pool][self.problem.segments[c.segment][0]] += self.problem.servers[c.server][1] 
-            objv = tuple(map(tuple, map(sorted,zip(*map(sorted, rc)))))  
+            objv = tuple(map(tuple, map(sorted, zip(*map(lambda l: sorted(sum(l)-i for i in l), rc)))))
             return tuple(map(lambda x: tuple(map(operator.sub, x[0], x[1])), zip(objv, self.objv)))
 
     def objective_increment_remove(self: Solution, c: Component) -> tuple[int, ...]: 
         if self.__forbidden(c):
-            return tuple([tuple([0] * len(self.problem.rows)) for _ in range(self.problem.p)])
+            return tuple([tuple([0] * self.problem.p) for _ in range(len(self.problem.rows))])
         else:
             rc = copy.deepcopy(self.rc)
             self.rc[c.pool][self.problem.segments[c.segment][0]] -= self.problem.servers[c.server][1]
-            objv = tuple(map(tuple, map(sorted,zip(*map(sorted, rc)))))  
+            objv = tuple(map(tuple, map(sorted, zip(*map(lambda l: sorted(sum(l)-i for i in l), rc)))))
             return tuple(map(lambda x: tuple(sorted(map(operator.sub, x[0], x[1]))), zip(objv, self.objv)))
         
     def objective_increment_local(self: Solution, m: LocalMove) -> tuple[int, ...]:
@@ -470,7 +470,7 @@ class Solution:
                 _, cap = self.problem.servers[server]
                 row = self.problem.segments[segment][0]
                 rc[pool][row] -= cap 
-        objv = tuple(map(tuple, map(sorted,zip(*map(sorted, rc)))))
+        objv = tuple(map(tuple, map(sorted, zip(*map(lambda l: sorted(sum(l)-i for i in l), rc)))))
         return tuple(map(lambda x: tuple(map(operator.sub, x[0], x[1])), zip(objv, self.objv)))
 
     def upper_bound_increment_add(self: Solution, c: Component) -> float:
@@ -647,7 +647,8 @@ class Solution:
             for j in range(self.problem.p):
                 ub_r[j] = min(ub_r[j], aux)
             ub_p.append(ub_r)
-        return tuple(map(tuple, map(sorted,zip(*map(sorted, ub_p))))), kp, lim, full, frac
+
+        return tuple(map(sorted, zip(*map(sorted, zip(*ub_p))))), kp, lim, full, frac
 
     def __upper_bound_update_add(
         self: Solution,
@@ -697,7 +698,8 @@ class Solution:
                     ub_lim[i] += 1
             total = ub_full[i] + ub_frac[i]
             ub_p.append(self.__row_upper_bound(i, total, ub_r))
-        return tuple(map(tuple, map(sorted,zip(*map(sorted, ub_p)))))
+
+        return tuple(map(sorted, zip(*map(sorted, zip(*ub_p)))))
 
     def __upper_bound_update_remove(
         self: Solution,
@@ -743,7 +745,8 @@ class Solution:
                 ub_frac[i] = cap * (ub_kp[i] / sz)
             total = ub_full[i] + ub_frac[i]
             ub_p.append(self.__row_upper_bound(i, total, ub_r))
-        return tuple(map(tuple, map(sorted,zip(*map(sorted, ub_p)))))
+
+        return tuple(map(sorted, zip(*map(sorted, zip(*ub_p)))))
 
     def __upper_bound_update_forbid(
         self: Solution,
@@ -779,7 +782,7 @@ class Solution:
                     ub_lim[i] += 1
             total = ub_full[i] + ub_frac[i]
             ub_p.append(self.__row_upper_bound(i, total, ub_r))
-        return tuple(map(tuple, map(sorted,zip(*map(sorted, ub_p)))))
+        return tuple(map(sorted, zip(*map(sorted, zip(*ub_p)))))
 
     def __row_upper_bound(self: Solution, row: int, total: float, ub: list[float]) -> tuple[float, ...]:
         count = self.problem.p

@@ -95,7 +95,7 @@ class MMAS:
 
             # Update pheromones
             if ni < self.n_restart:
-                tau_max = 1.0 / cast(T, bobjv)
+                tau_max = 1 - 1.0 / cast(T, bobjv)
                 tau_min = tau_max / self.a
                 tau0 = (1.0 - self.rho) * tau0
                 tau0 = max(tau_min, min(tau_max, tau0))
@@ -111,20 +111,20 @@ class MMAS:
                     for c in b.components():
                         cid = cast(Component, c).id()
                         if cid not in tau:
-                            tau[cid] = min(tau_max, tau0 + 1.0 / obj)
+                            tau[cid] = min(tau_max, tau0 + (1 - 1.0 / obj))
                         else:
-                            tau[cid] = min(tau_max, tau[cid] + 1.0 / obj)
+                            tau[cid] = min(tau_max, tau[cid] + (1 - 1.0 / obj))
                 elif best is not None:
                     # Using global-best ant
                     for c in best.components():
                         cid = cast(Component, c).id()
                         if cid not in tau:
-                            tau[cid] = min(tau_max, tau0 + 1.0 / cast(T, bobjv))
+                            tau[cid] = min(tau_max, tau0 + (1 - 1.0 / cast(T, bobjv)))
                         else:
-                            tau[cid] = min(tau_max, tau[cid] + 1.0 / cast(T, bobjv))
+                            tau[cid] = min(tau_max, tau[cid] + (1 - 1.0 / cast(T, bobjv)))
             else:
                 # Reinitialization
-                tau_max = 1.0 / cast(T, bobjv)
+                tau_max = 1 - 1.0 / cast(T, bobjv)
                 tau_min = tau_max / self.a
                 tau0 = tau_max
                 for k in tau:
@@ -144,7 +144,7 @@ class MMAS:
                     cszero.append(c)
                 else:
                     cs.append(c)
-                    p.append((tau[k]**self.alpha) * ((1.0 / incr) ** self.beta))
+                    p.append((tau[k]**self.alpha) * ((1.0 / -incr) ** self.beta))
             if best is None:
                 if len(cszero) > 0:
                     best = random.choice(cszero)
