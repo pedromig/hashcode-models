@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import sys
 import random
 import copy
+import itertools
 
 import nasf4nio as nio
 from nasf4nio.tests import objective_increment_add_test
@@ -195,6 +196,7 @@ class Solution:
                                 yield Component(server, pool, segment)
                 yield Component(server)
             
+    # TODO Missing unforbid moves
     def remove_moves(self: Solution) -> Iterable[Component]:
         for server in self.used:
             pool, segment = self.alloc[server]
@@ -202,7 +204,7 @@ class Solution:
 
     def local_moves(self: Solution) -> Iterable[LocalMove]:
         # Add (unused) Servers
-        for add in self.unused:
+        for add in itertools.chain(self.unused, self.forbidden):
             for r in range(self.problem.r):
                 for segment in self.problem.rows[r]:
                     if self.__fits(add, segment):
@@ -243,8 +245,9 @@ class Solution:
     def random_local_moves_wor(self: Solution) -> Iterable[LocalMove]:
         used = list(self.used)
         unused = list(self.unused)
+        forbidden = list(self.forbidden)
 
-        add_moves = len(self.unused) * len(self.problem.segments) * self.problem.p
+        add_moves = (len(self.unused) + len(self.forbidden)) * len(self.problem.segments) * self.problem.p
         remove_moves = len(self.used)
         change_segment_moves = len(self.used) * len(self.problem.segments)
         change_pool_moves = len(self.used) * self.problem.p
@@ -254,7 +257,11 @@ class Solution:
             # Add (unused) Servers
             if move < add_moves:
                 # Decode Server
-                server = unused[move // (len(self.problem.segments) * self.problem.p)]
+                server = move // (len(self.problem.segments) * self.problem.p)
+                if server < len(unused):
+                    server = unused[server]
+                else:
+                    server = forbidden[server-len(unused)]
                 move = move % (len(self.problem.segments) * self.problem.p)
 
                 # Decode Segment
@@ -339,19 +346,24 @@ class Solution:
         return next(self.heuristic_add_moves(), None)
 
     def random_add_move(self: Solution) -> Component:
-        print(self.unused)
-        server = random.choice(list(self.unused)) 
-        pool = random.choice(list(range(self.problem.p)))
-         
-        rows = list(range(self.problem.r))
-        random.shuffle(rows)  
-        for row in rows:
-            segments = self.problem.rows[row].copy()
-            random.shuffle(segments)
-            for segment in segments:
-                if self.__fits(server, segment):
-                    return Component(server, pool, segment)
+        if len(self.unused) > 0:
+            unused = list(self.unused)
+            n = len(unused)
+            m = len(self.problem.segments)
+            p = self.problem.p
+            for x in non_repeating_lcg(n*m*p+n):
+                if x >= n*m*p:
+                    server = unused[x - n*m*p]
+                    return Component(server, None, None)
+                else:
+                    server = unused[x // (m*p)]
+                    rem = x % (m*p)
+                    segment = rem // p
+                    pool = rem % p
+                    if self.__fits(server, segment):
+                        return Component(server, pool, segment)
 
+    # TODO missing unforbid move
     def random_remove_move(self: Solution) -> Component:
         server = random.choice(list(self.used))
         pool, segment = self.alloc[server]
