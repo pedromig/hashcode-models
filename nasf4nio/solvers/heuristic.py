@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import logging
 
 from typing import TypeVar, Protocol, Optional, Iterable, TypedDict, cast
 from typing_extensions import Self, Unpack
@@ -87,7 +88,8 @@ class HGRASP:
                     if b is not None and b.feasible():
                         bobj = cast(T, b.objective())
                 if bobjv is None or bobj > bobjv:
-                    best, bobjv = b, bobj
+                    best, bobjv = b, bobj     
+                    logging.debug("SCORE: ", solution.score())
         return best
      
     class SolutionProtocol(Protocol[T, Component]):

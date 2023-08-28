@@ -41,16 +41,16 @@ class BeamSearch:
     
     def __call__(self: Self, solution: Solution, timer: Timer) -> Solution:
         best, bobjv = ((solution, solution.objective() ) if solution.feasible() else (None, None))
-        backtrack: BeamList = [(solution.upper_bound(), solution)]
+        beam: BeamList = [(solution.upper_bound(), solution)]
         while not timer.finished():
             candidates = []
-            for ub, s in backtrack:
+            for ub, s in beam:
                 for c in s.add_moves():
                     candidates.append((ub + cast(T, s.upper_bound_increment_add(c)), s, c))
             if not len(candidates):
                 break
             candidates.sort(reverse=True, key=itemgetter(0))
-            backtrack: BeamList = []
+            beam: BeamList = []
             for ub, s, c in candidates[:self.bw]:
                 s: Solution = s.copy()
                 s.add(c)
@@ -58,6 +58,6 @@ class BeamSearch:
                     obj = cast(T, s.objective())
                     if bobjv is None or obj > bobjv:
                         best, bobjv = s, obj
-                backtrack.append((ub, s))
+                beam.append((ub, s))
         return best
  

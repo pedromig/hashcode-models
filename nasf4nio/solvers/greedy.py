@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import logging
 
 from typing import cast, Protocol, TypeVar, Optional, Iterable, Mapping, TypedDict
 from typing_extensions import Self,Unpack
@@ -24,7 +24,8 @@ class GreedyConstruction:
                             solution.add_moves())),
                     default = None,
                     key = itemgetter(0))) is not None:
-            solution.add(c[1])
+            solution.add(c[1]) 
+            logging.info(f"SCORE: {solution.score()}")
         return solution
                 
     class SolutionProtocol(Protocol[T, Component]):
@@ -42,7 +43,8 @@ class GreedyUpperBoundConstruction:
                             solution.add_moves())),
                     default = None,
                     key = itemgetter(0))) is not None:
-            solution.add(c[1])
+            solution.add(c[1]) 
+            logging.debug(f"SCORE: {solution.score()}")
         return solution
                     
     class SolutionProtocol(Protocol[T, Component]):
@@ -53,14 +55,14 @@ class GreedyUpperBoundConstruction:
     Solution = TypeVar('Solution', bound=SolutionProtocol)
          
 class GreedyObjectiveConstruction:  
-    def __call__(self: Self, solution: Solution) -> Solution: 
+    def __call__(self: Self, solution: Solution) -> Solution:
         while (c := max(filter(lambda v: v[0] is not None,
                         map(lambda c: (solution.objective_increment_add(c), c),
                             solution.add_moves())),
                     default = None,
                     key = itemgetter(0))) is not None:
             solution.add(c[1])
-            print(solution.score())
+            logging.debug(f"SCORE: {solution.score()}")
         return solution
                 
     class SolutionProtocol(Protocol[T, Component]):

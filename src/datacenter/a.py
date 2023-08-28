@@ -24,22 +24,24 @@ class Problem:
         # Setup
         self.__init_problem()
 
-        print(f"Pools: {self.p}")
-        print(f"Segments: {len(self.segments)}")
-
     def empty_solution(self: Problem) -> Solution:
         return Solution(self, init_ub=True)
     
     def heuristic_solution(self: Problem) -> Solution:
         solution = self.empty_solution()
         while (c := solution.heuristic_add_move()) is not None:
+            print(c)
             solution.add(c)
         return solution
 
     def random_solution(self: Problem) -> Solution:
         solution = self.empty_solution()
         while (c := solution.random_add_move()) is not None:
+            print(c)
+            # print("A", solution.upper_bound(), solution.upper_bound_increment_add(c))
             solution.add(c)
+            # print("R", solution.upper_bound(), solution.upper_bound_increment_remove(c))
+            # print(list(solution.add_moves()))
         return solution
 
     @staticmethod
@@ -194,7 +196,7 @@ class Solution:
                 yield Component(server)
             
     def remove_moves(self: Solution) -> Iterable[Component]:
-        for server in self.unused:
+        for server in self.used:
             pool, segment = self.alloc[server]
             yield Component(server, pool, segment)
 
@@ -337,26 +339,23 @@ class Solution:
         return next(self.heuristic_add_moves(), None)
 
     def random_add_move(self: Solution) -> Component:
-        unused = list(self.unused)
-        server = random.choice(unused)
-        pools = list(range(self.problem.p))
-        for server in unused:
-            rows = list(range(self.problem.r))
-            row = random.choice(rows)
-            for row in rows:
-                segments = self.problem.rows[row].copy()
-                random.shuffle(segments)
-                for segment in segments:
-                    pool = random.choice(pools)
-                    if self.__fits(server, segment):
-                        return Component(server, pool, segment)
+        print(self.unused)
+        server = random.choice(list(self.unused)) 
+        pool = random.choice(list(range(self.problem.p)))
+         
+        rows = list(range(self.problem.r))
+        random.shuffle(rows)  
+        for row in rows:
+            segments = self.problem.rows[row].copy()
+            random.shuffle(segments)
+            for segment in segments:
+                if self.__fits(server, segment):
+                    return Component(server, pool, segment)
 
     def random_remove_move(self: Solution) -> Component:
-        used = list(self.used)
-        random.shuffle(used)
-        for server in used:
-            pool, segment = self.alloc[server]
-            return Component(server, pool, segment)
+        server = random.choice(list(self.used))
+        pool, segment = self.alloc[server]
+        return Component(server, pool, segment)
 
     def random_local_move(self: Solution) -> LocalMove:
         return next(self.random_local_moves_wor(), None)
@@ -687,11 +686,11 @@ class Solution:
                 ub_full[i] += capacity
                 sx = self.problem.sservers[ub_lim[i]]
                 sz, cap = self.problem.servers[sx]
-                while ub_kp[i] < 0:
+                while ub_kp[i] < 0 and ub_lim[i] > 0:
                     ub_lim[i] -= 1
                     sx = self.problem.sservers[ub_lim[i]]
                     sz, cap = self.problem.servers[sx]
-                    if sx in self.unused:
+                    if sx in self.unused and sx not in self.forbidden:
                         ub_kp[i] += sz
                         ub_full[i] -= cap
                 ub_frac[i] = cap * (ub_kp[i] / sz)
@@ -703,7 +702,7 @@ class Solution:
                 while ub_lim[i] < self.problem.m:
                     sx = self.problem.sservers[ub_lim[i]]
                     sz, cap = self.problem.servers[sx]
-                    if sx in self.unused and sx != c.server:
+                    if sx in self.unused and sx not in self.forbidden and sx != c.server:
                         if sz <= ub_kp[i]:
                             ub_kp[i] -= sz
                             ub_full[i] += cap
@@ -732,7 +731,7 @@ class Solution:
                 while ub_lim[i] < self.problem.m:
                     sx = self.problem.sservers[ub_lim[i]]
                     sz, cap = self.problem.servers[sx]
-                    if sx in self.unused:
+                    if sx in self.unused and sx not in self.forbidden:
                         if sz <= ub_kp[i]:
                             ub_kp[i] -= sz
                             ub_full[i] += cap
@@ -740,18 +739,18 @@ class Solution:
                             ub_frac[i] = cap * (ub_kp[i] / sz)
                             break
                     ub_lim[i] += 1
-            elif i == row and self.problem.pservers[c.server] <= ub_lim[i]:
+            if i == row and self.problem.pservers[c.server] <= ub_lim[i]:
                 ub_kp[i] -= size
                 ub_full[i] += capacity
                 sx = self.problem.sservers[ub_lim[i]]
                 sz, cap = self.problem.servers[sx]
-                while ub_kp[i] < 0:
+                while ub_kp[i] < 0 and ub_lim[i] > 0:
                     ub_lim[i] -= 1
                     sx = self.problem.sservers[ub_lim[i]]
                     sz, cap = self.problem.servers[sx]
-                    if sx in self.unused:
-                        ub_full[i] -= cap
+                    if sx in self.unused and sx not in self.forbidden and sx != c.server:
                         ub_kp[i] += sz
+                        ub_full[i] -= cap
                 ub_frac[i] = cap * (ub_kp[i] / sz)
             total = ub_full[i] + ub_frac[i]
             ub = min(ub, total / self.problem.p)
@@ -798,7 +797,7 @@ class Solution:
                 p = -1
             p += 1
         return ub 
-    
+                    
     def __eq__(self: Solution, other: Solution) -> bool:
         for server in self.used:
             if server in other.used and self.alloc[server] == other.alloc[server]:

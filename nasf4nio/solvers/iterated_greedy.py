@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import random
 
 from typing import TypeVar, Protocol, Optional, Iterable, TypedDict, cast
@@ -33,8 +34,8 @@ class SolutionProtocol(Protocol[T, Component]):
 Solution = TypeVar('Solution', bound=SolutionProtocol) 
 
 class IteratedGreedy:
-    def __init__(self: Self, alpha: Optional[float] = 0.1, 
-                 ks: Optional[int] = 0) -> None:
+    def __init__(self: Self, alpha: Optional[float] = 0.9,
+                 ks: Optional[int] = 2) -> None:
         self.alpha = alpha  
         self.ks = ks
  
@@ -51,15 +52,22 @@ class IteratedGreedy:
                     break
                 candidates = [(solution.upper_bound_increment_add(c), c) for c in solution.add_moves()] 
 
+            # logging.debug(f"SCORE: {solution.score()}")
             if solution.feasible():
                 obj = cast(T, solution.objective())
                 if bobjv is None or obj > bobjv: 
                     best, bobjv = solution.copy(), obj
+                    logging.debug(f"BEST SCORE: {solution.score()}")
 
             for _ in range(self.ks):
                 c = solution.random_remove_move()
                 if c is not None:
-                    solution.remove(c)
+                    print(c)
+                    print(solution.gc, solution.ub_kp, solution.ub_full, solution.ub_frac, solution.ub_lim)
+                    incr = solution.upper_bound_increment_remove(c)
+                    ub = solution.upper_bound()
+                    solution.remove(c)    
+                    assert solution.upper_bound() == ub + incr, f"{ub} {incr} {solution.upper_bound()}"
         return best
      
     def __threshold(self: Self, candidates: list[tuple[T, Component]]) -> Component: 

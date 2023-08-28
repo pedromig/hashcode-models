@@ -4,6 +4,8 @@
 import sys
 sys.path.append("..")
 
+import logging
+
 import nasf4nio.solvers as solvers
 from nasf4nio.utils import Timer
 
@@ -11,17 +13,22 @@ import datacenter.a as model
 # import datacenter.b as model
 # import datacenter.c as model
 
+# import scanning.a as model
+# import scanning.b as model
+
 def debug(*args: object) -> None:
     print(*args, file=sys.stderr)
     
  
 if __name__ == "__main__": 
+    
     # Problem    
     problem = model.Problem.from_stdin() 
+    # print(problem.servers, problem.sservers, problem.pservers)
      
     # Solution 
-    solution = problem.empty_solution() 
-    # solution = problem.random_solution()
+    # solution = problem.empty_solution() 
+    solution = problem.random_solution()
         
     # Solvers 
      
@@ -34,21 +41,24 @@ if __name__ == "__main__":
     # solver = solvers.HGRASP()
     
     # solver = solvers.GreedyConstruction() 
-    # solver = solvers.GreedyUpperBoundConstruction()
+    #solver = solvers.GreedyUpperBoundConstruction()
     # solver = solvers.GreedyObjectiveConstruction()
     
     # solver = solvers.BeamSearch()
     # solver = solvers.GRASP(alpha=None)
-    # solver = solvers.IteratedGreedy() 
-    solver = solvers.MMAS(1 - 1/solution.upper_bound())
+    # solver = solvers.IteratedGreedy(alpha=None) 
+    # solver = solvers.MMAS(1 - 1/solution.upper_bound())
 
-    population = [solution.copy() for _ in range(10)]
-     
-    solution: model.Solution = solver(population, Timer(1200))
+    # population = [solution.copy() for _ in range(10)]
+    
+    # solution: model.Solution = solver(population, Timer(1200)) 
+    # solution: model.Solution = solver(solution, Timer(60))
     # solution: model.Solution = solver(solution)
     debug("SCORE:", solution.score()) 
+    debug("OBJECTIVE: ", solution.objective())
     debug("UPPER BOUND:", solution.upper_bound())  
     
+    # print(solution.upper_bound(), solution.objective(), solution.ss)
     # Local 
     # tuple_zero = 0 
     # tuple_zero = tuple([0] * problem.p)
@@ -65,5 +75,5 @@ if __name__ == "__main__":
     # solution: model.Solution = solver(solution, Timer(300))
     
     # print(solution) 
-    debug("SCORE:", solution.score()) 
+    # debug("SCORE:", solution.score()) 
  

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import logging
 
 from typing import TypeVar, Protocol, Optional, Iterable, TypedDict, cast
 from typing_extensions import Self, Unpack
@@ -63,14 +64,16 @@ class GRASP:
                     obj = cast(T, s.objective())
                     if bobj is None or obj > bobj:
                         b, bobj = s.copy(), obj
+                        logging.debug(f"SCORE: {bobj}")
                 candidates = [(cast(T, s.upper_bound_increment_add(c)), c) for c in s.add_moves()]
             if b is not None:
                 if self.local_search is not None:
                     b = cast(Solution, self.local_search(b, **self.kwargs))
                     if b is not None and b.feasible():
-                        bobj = cast(T, b.objective())
+                        bobj = cast(T, b.objective()) 
                 if bobjv is None or bobj > bobjv:
                     best, bobjv = b, bobj
+                    logging.debug(f"BEST SCORE: {bobj}")
         return best
      
     def __threshold(self: Self, candidates: list[tuple[T, Component]]) -> Component: 

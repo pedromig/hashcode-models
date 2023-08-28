@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 import random
 import copy
-import math
+
+from nasf4nio.utils import non_repeating_lcg
 
 class Problem:
     def __init__(self: Problem, b: int, l: int, d: int, scores: tuple[tuple[int, ...]],
@@ -136,7 +137,7 @@ class Solution:
     def score(self: Solution) -> int:
         return self.objv
 
-    def objective_value(self: Solution) -> int:
+    def objective(self: Solution) -> int:
         return self.objv
 
     def upper_bound(self: Solution) -> int:
@@ -147,10 +148,10 @@ class Solution:
             if self.__signed(library) and self.__has_quota(library):
                 for book in self.problem.books[library]:
                     if book not in self.books[library] and not self.__forbidden(book, library):
-                        yield Component(self.problem, book, library)
+                        yield Component(library, book)
                         continue
             if self.__signable(library):
-                yield Component(self.problem, None, library)
+                yield Component(library, None)
 
     def heuristic_add_moves(self: Solution) -> Iterable[Component]:
         libraries = sorted(
@@ -159,12 +160,12 @@ class Solution:
             reverse=True)
 
         for library in libraries:
-            yield Component(self.problem, None, library)
+            yield Component(library, None)
 
         for library in self.libraries:
             for book in self.problem.sbooks[library]:
                 if self.__has_quota(library) and book not in self.used:
-                    yield Component(self.problem, book, library)
+                    yield Component(library, book)
                 elif not self.__has_quota(library):
                     break
 
@@ -172,8 +173,9 @@ class Solution:
         for book, library in self.used.items():
             if self.__signed(library):
                 for book in self.books[library]:
-                    yield Component(self.problem, book, library)
-                yield Component(self.problem, None, library)
+                    yield Component(library, book)
+                if len(self.books[library]) == 0:
+                    yield Component(library, None)
           
     def local_moves(self: Solution) -> Iterable[LocalMove]:
         # Add (unused) books
@@ -181,18 +183,18 @@ class Solution:
             if self.__has_quota(library):
                 for book in self.problem.books[library]:
                     if book not in self.used:
-                        yield LocalMove(self.problem, add=(book, library))
+                        yield LocalMove(add=(library, book))
 
         # Remove (used) books
         for book, library in self.used.items():
-            yield LocalMove(self.problem, remove=(book, library))
+            yield LocalMove(remove=(library, book))
 
         # Swap Moves (Same Library)
         for library in self.libraries:
             for i in self.problem.books[library]:
                 if i not in self.used:
                     for j in self.books[library]:
-                        yield LocalMove(self.problem, add=(i, library), remove=(j, library))
+                        yield LocalMove(add=(library, i), remove=(library, j))
 
         # Swap (used) books from one library (i) to another (j).
         # Add other (unused) book to library (i) if possible.
@@ -200,10 +202,10 @@ class Solution:
             i = self.used.get(book)
             for j in self.problem.libraries[book]:
                 if i != j and self.__signed(j) and self.__has_quota(j):
-                    yield LocalMove(self.problem, remove=(book, i), add=(book, j))
+                    yield LocalMove(self.problem, remove=(i, book), add=(j, book))
                     for other in self.problem.books[i]:
                         if other not in self.used:
-                            yield LocalMove(self.problem, swap=(book, other, i), add=(book, j))
+                            yield LocalMove(swap=(book, other, i), add=(j, book))
           
 
     def random_local_moves_wor(self: Solution) -> Iterable[LocalMove]:
@@ -220,7 +222,7 @@ class Solution:
             if move < add_book_moves:
                 library, book = libraries[move // self.problem.b], move % self.problem.b
                 if self.__has_quota(library) and book not in self.used and book in self.problem.books[library]:
-                    yield LocalMove(self.problem, add=(book, library))
+                    yield LocalMove(add=(library, book))
                 continue
             move -= add_book_moves
 
@@ -229,7 +231,7 @@ class Solution:
                 book = move
                 if book in self.used:
                     library = self.used.get(book)
-                    yield LocalMove(self.problem, remove=(book, library))
+                    yield LocalMove(remove=(library, book))
                 continue
             move -= remove_book_moves
 
@@ -238,7 +240,7 @@ class Solution:
                 library, move = libraries[move // (self.problem.b**2)], move % (self.problem.b**2)
                 i, j = move // self.problem.b, move % self.problem.b
                 if i not in self.used and i in self.problem.books[library] and j in self.books[library]:
-                    yield LocalMove(self.problem, add=(i, library), remove=(j, library))
+                    yield LocalMove(add=(library, i), remove=(library, j))
                 continue
             move -= swap_book_moves
 
@@ -249,9 +251,12 @@ class Solution:
                 j, other = move // (self.problem.b + 1), move % (self.problem.b + 1)
                 if i != j and self.__signed(j) and book in self.problem.books[j] and self.__has_quota(j):
                     if other == 1:
-                        yield LocalMove(self.problem, remove=(book, i), add=(book, j))
+                        yield LocalMove(remove=(i, book), add=(j, book))
                     elif other not in self.used and other in self.problem.books[i]:
-                        yield LocalMove(self.problem, swap=(book, other, i), add=(book, j))
+                        yield LocalMove(swap=(book, other, i), add=(j, book))
+                        
+    def heuristic_add_move(self: Solution) -> Component:
+        return next(self.heuristic_add_moves(), None)
 
     def random_add_move(self: Solution) -> Component:
         libraries = list(range(self.problem.l))
@@ -262,10 +267,10 @@ class Solution:
                 random.shuffle(books)
                 for book in books:
                     if book not in self.books[library] and not self.__forbidden(book, library):
-                        return Component(self.problem, book, library)
+                        return Component(library, book)
                 continue
             if self.__signable(library):
-                return Component(self.problem, None, library)
+                return Component(library, None)
 
     def random_remove_move(self: Solution) -> Component:
         libraries = list(range(self.problem.l))
@@ -275,8 +280,8 @@ class Solution:
                 books = list(self.books[library])
                 random.shuffle(books)
                 for book in books:
-                    return Component(self.problem, book, library)
-                return Component(self.problem, None, library)
+                    return Component(library, book)
+                return Component(library, None)
 
     def random_local_move(self: Solution) -> LocalMove:
         return next(self.random_local_moves_wor(), None)
@@ -306,14 +311,14 @@ class Solution:
 
         if move.swap is not None:
             book, other, library = move.swap
-            objv -= self.__remove(Component(self.problem, book, library))
-            objv += self.__add(Component(self.problem, other, library))
+            objv -= self.__remove(Component(library, book))
+            objv += self.__add(Component(library, other))
 
         if move.remove is not None:
-            objv -= self.__remove(Component(self.problem, *move.remove))
+            objv -= self.__remove(Component(*move.remove))
 
         if move.add is not None:
-            objv += self.__add(Component(self.problem, *move.add))
+            objv += self.__add(Component(*move.add))
 
         # Update Objective Value
         self.objv = objv
@@ -324,6 +329,9 @@ class Solution:
     def perturb(self: Solution, kick: int) -> None:
         for _ in range(kick):
             self.step(self.random_local_move())
+                    
+    def heuristic_value(self: Solution, c: Component):
+      return sum([self.problem.scores[b] for b in self.problem.sbooks[c.library] if b not in self.used][:(self.problem.d - self.day - self.problem.signup[c.library]) * self.problem.rate[c.library]]) / self.problem.signup[c.library]
 
     def objective_increment_add(self: Solution, c: Component) -> int:
         objv = self.objv
@@ -360,19 +368,6 @@ class Solution:
     def upper_bound_increment_remove(self: Solution, c: Component) -> int:
         ub = self.__upper_bound_update_remove(c, self.ub_kp.copy(), self.ub_lim.copy(), self.ub_full.copy())
         return ub - self.ub
-
-    def _objective_value(self: Solution) -> int:
-        books = set()
-        quota = [(self.problem.d - self.start[i]) * self.problem.rate[i] for i in range(self.problem.l)]
-        for library in self.libraries:
-            for book in self.books[library]:
-                if quota[library] > 0:
-                    books.add(book)
-                    quota[library] -= 1
-        return sum(self.problem.scores[i] for i in books)
-
-    def _score(self: Solution) -> int:
-        return self._objective_value()
 
     def __add(self: Solution, c: Component) -> int:
         score = 0
@@ -546,30 +541,14 @@ class Solution:
 
 @dataclass(order=True)
 class LocalMove:
-    problem: Problem 
     add: Optional[tuple[int, int]] = None
     remove: Optional[tuple[int, int]] = None
     swap: Optional[tuple[int, int, int]] = None
 
 @dataclass(order=True)
 class Component:
-    problem: Problem
-    book: Optional[int] = None
     library: int
-        
-def non_repeating_lcg(n: int, seed: Optional[int] = None) -> Iterable[int]:
-    if seed is not None:
-        random.seed(seed)
-    "Pseudorandom sampling without replacement in O(1) space"
-    if n > 0:
-        a = 5 # always 5
-        m = 1 << math.ceil(math.log2(n))
-        if m > 1:
-            c = random.randrange(1, m, 2)
-            x = random.randrange(m)
-            for _ in range(m):
-                if x < n: 
-                    yield x
-                x = (a * x + c) % m
-        else:
-            yield 0
+    book: Optional[int] = None
+    
+    def id(self):
+        return (self.library, self.book)

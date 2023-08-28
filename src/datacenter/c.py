@@ -336,26 +336,22 @@ class Solution:
         return next(self.heuristic_add_moves(), None)
 
     def random_add_move(self: Solution) -> Component:
-        unused = list(self.unused)
-        random.shuffle(unused)
-        pools = list(range(self.problem.p))
-        for server in unused:
-            rows = list(range(self.problem.r))
-            random.shuffle(rows)
-            for row in rows:
-                segments = self.problem.rows[row].copy()
-                random.shuffle(segments)
-                for segment in segments:
-                    pool = random.choice(pools)
-                    if self.__fits(server, segment):
-                        return Component(server, pool, segment)
+        server = random.choice(list(self.unused)) 
+        pool = random.choice(list(range(self.problem.p)))
+         
+        rows = list(range(self.problem.r))
+        random.shuffle(rows)  
+        for row in rows:
+            segments = self.problem.rows[row].copy()
+            random.shuffle(segments)
+            for segment in segments:
+                if self.__fits(server, segment):
+                    return Component(server, pool, segment)
 
     def random_remove_move(self: Solution) -> Component:
-        used = list(self.used)
-        random.shuffle(used)
-        for server in used:
-            pool, segment = self.alloc[server]
-            return Component(server, pool, segment)
+        server = random.choice(list(self.used))
+        pool, segment = self.alloc[server]
+        return Component(server, pool, segment)
 
     def random_local_move(self: Solution) -> LocalMove:
         return next(self.random_local_moves_wor(), None)
@@ -840,3 +836,6 @@ class Component:
     server: int
     pool: Optional[int] = None
     segment: Optional[int] = None
+
+    def id(self):
+        return self.server, self.pool, self.segment
